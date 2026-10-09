@@ -2,6 +2,8 @@
 
     /health            liveness, and the last scheduler tick
     /api/v1/whoami     the caller, as the backend sees them
+    /api/v1/jobs...    jobs: define, change, delete, trigger (jobs.py)
+    /api/v1/preview    render a job definition (jobs.py)
     /docs              OpenAPI UI
 
 One process per database: `uvicorn --factory docker_jobs_backend.main:create_app`,
@@ -18,6 +20,7 @@ from fastapi import Depends, FastAPI
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
+from docker_jobs_backend import jobs
 from docker_jobs_backend.auth import User, get_current_user, require_token
 from docker_jobs_backend.db import Job, create_session_factory
 from docker_jobs_backend.lifecycle import Lifecycle
@@ -93,6 +96,10 @@ def create_app(
     )
     def whoami(user: User = Depends(get_current_user)) -> User:
         return user
+
+    application.include_router(
+        jobs.router, prefix=API_PREFIX, dependencies=[Depends(require_token)]
+    )
 
     return application
 
