@@ -1,0 +1,69 @@
+name: docker-jobs-backend CI/CD
+
+# Thin caller of the workflow-catalog building blocks, like
+# download-manager-backend.yml:
+#   python-ci.yml    — tox (pytest + reports) + SonarQube -> wheel/sdist (`dist`)
+#   sbom.yml         — package CycloneDX SBOM -> Dependency-Track
+#   docker-build.yml — image from the `dist` artifact -> Nexus Docker registry
+# The backend is an application: the wheel is never published (publish: false).
+#
+#   push to develop   -> ci + package SBOM (dev) + dev image (branch + sha tags)
+#   push tag x.y.z    -> ci + package SBOM (prod) + release image (semver tags)
+#   workflow_dispatch -> manual run
+
+on:
+  push:
+    branches:
+      - "develop"
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    permissions:
+      contents: read
+    uses: CSC-Operations-Coordination-Service/workflow-catalog/.github/workflows/python-ci.yml@develop
+    with:
+      project-dir: .
+      python-version: "3.11"
+      publish: false
+    secrets: inherit
+
+  sbom:
+    needs: ci
+    uses: CSC-Operations-Coordination-Service/workflow-catalog/.github/workflows/sbom.yml@develop
+    with:
+      project-dir: .
+      project-name: docker-jobs-backend
+      project-version: ${{ needs.ci.outputs.version }}
+      python-version: "3.11"
+      context: ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'dev' }}
+    secrets: inherit
+
+  docker:
+    needs: ci
+    if: github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      packages: write
+    uses: CSC-Operations-Coordination-Service/workflow-catalog/.github/workflows/docker-build.yml@develop
+    with:
+      image-name: docker-jobs-backend
+      context: .
+      dockerfile: Dockerfile
+      artifact-name: dist
+      artifact-path: dist/
+      mount-pip-index: true
+      release: ${{ startsWith(github.ref, 'refs/tags/') }}
+      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'dev' }}
+      # the Nexus Docker connector is plain HTTP
+      insecure-registry: true
+      generate-sbom: ${{ startsWith(github.ref, 'refs/tags/') }}
+      sbom-project-name: docker-jobs-backend-image
+      sbom-project-version: ${{ needs.ci.outputs.version }}
+    secrets: inherit
