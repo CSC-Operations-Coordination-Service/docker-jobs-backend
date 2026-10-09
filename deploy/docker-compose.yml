@@ -53,8 +53,10 @@ services:
         mode: 0400
     volumes:
       - dj-data:/data
+      # the long form: `docker stack deploy` ignores the `tmpfs:` key
+      - type: tmpfs
+        target: /tmp
     read_only: true
-    tmpfs: [/tmp]
     # internal: the socket-proxy. monitoring: Alloy (OTLP), and the Grafana
     # that runs the app.
     networks: [internal, monitoring]
@@ -112,7 +114,11 @@ services:
     # (GF_PLUGINS_PREINSTALL_SYNC, deploy/grafana/grafana.env.example).
     image: ${DJ_IMAGE_REGISTRY}/docker-jobs-app:${DJ_APP_VERSION}
     read_only: true
-    tmpfs: [/tmp]
+    # nginx writes its pid and temp files there; the long form, because
+    # `docker stack deploy` ignores the `tmpfs:` key
+    volumes:
+      - type: tmpfs
+        target: /tmp
     networks: [monitoring]
     logging: *logging-loki
     deploy:
