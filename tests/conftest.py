@@ -3,6 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from docker_jobs_backend.db import create_session_factory
 from docker_jobs_backend.main import create_app
 from docker_jobs_backend.settings import Settings
 
@@ -15,6 +16,17 @@ def settings_fixture(tmp_path):
         lock_file=str(tmp_path / "scheduler.lock"),
         scheduler_enabled=False,
     )
+
+
+@pytest.fixture(name="session_factory")
+def session_factory_fixture(settings):
+    return create_session_factory(settings.database_url)
+
+
+@pytest.fixture(name="session")
+def session_fixture(session_factory):
+    with session_factory() as session:
+        yield session
 
 
 @pytest.fixture(name="make_app")
