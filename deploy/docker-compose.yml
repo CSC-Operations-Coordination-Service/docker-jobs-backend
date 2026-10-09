@@ -107,6 +107,24 @@ services:
           # /services and /tasks only answer on a manager
           - node.role == manager
 
+  app:
+    # The Grafana app's zip, served to the Grafana that installs it at startup
+    # (GF_PLUGINS_PREINSTALL_SYNC, deploy/grafana/grafana.env.example).
+    image: ${DJ_IMAGE_REGISTRY}/docker-jobs-app:${DJ_APP_VERSION}
+    read_only: true
+    tmpfs: [/tmp]
+    networks: [monitoring]
+    logging: *logging-loki
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 5s
+        # stateless: start the new one before stopping the old
+        order: start-first
+      restart_policy:
+        condition: any
+
 secrets:
   dj_api_token:
     external: true

@@ -7,6 +7,7 @@ everything variable in `.env`, the API token an external secret with a content-h
 | --- | --- | --- | --- |
 | `backend` | `docker-jobs-backend` | `internal`, monitoring | API + scheduler. **1 replica**, `stop-first`, on the node labelled `docker-jobs=true` (its SQLite volume). Not routed by Traefik |
 | `socket-proxy` | `tecnativa/docker-socket-proxy:v0.5.0` | `internal` | holds the docker socket, on a manager; services/tasks/secrets/configs/networks + POST |
+| `app` | `docker-jobs-app` | monitoring | serves the Grafana app's zip (`ocs-dockerjobs-app`) to Grafana |
 
 The `internal` network is named `docker-jobs-socket` and the volume `docker-jobs-data`: the
 backend refuses both to every job (`PROTECTED_NETWORKS`, `PROTECTED_VOLUMES`), because a swarm
@@ -58,6 +59,11 @@ Copy this folder to `csc-ocs-ansible/stacks/platform/docker-jobs` (without `.env
   `/etc/grafana/provisioning/alerting/docker-jobs-alerts.yaml` in the Grafana that holds the
   Mimir datasource, with `MIMIR_DATASOURCE_UID` in its environment, and add an Alertmanager
   route for `component=docker-jobs` (unmatched alerts go to blackhole).
-- **The app.** The Grafana app (`../../docker-jobs-app`, its own plan) reaches the backend at
-  `http://docker-jobs_backend:8000` over `MONITORING_NETWORK`, with `GF_DATAPROXY_SEND_USER_HEADER=true`
-  and the token above.
+- **The app.** The `app` service serves the plugin zip. The Grafana that runs it needs the
+  environment in [grafana/grafana.env.example](grafana/grafana.env.example) — install from
+  `docker-jobs_app`, allow it unsigned, send the user header — the provisioning file
+  [grafana/docker-jobs-app.yaml](grafana/docker-jobs-app.yaml) mounted at
+  `/etc/grafana/provisioning/plugins/docker-jobs-app.yaml`, and this stack's API token
+  secret attached as `/run/secrets/docker_jobs_api_token`. It must be on
+  `MONITORING_NETWORK`. Bump `DJ_APP_VERSION` and the version in
+  `GF_PLUGINS_PREINSTALL_SYNC` together; deploy this stack before restarting Grafana.

@@ -1,0 +1,17 @@
+# Grafana app provisioning for the Docker Jobs app (ocs-dockerjobs-app): mount it
+# in the Grafana that runs the app, at
+# /etc/grafana/provisioning/plugins/docker-jobs-app.yaml. Grafana expands
+# ${...} from its environment (grafana.env.example) and reads $__file{...}:
+# attach this stack's API token secret (DJ_API_TOKEN_SECRET_NAME, external)
+# to the Grafana service as /run/secrets/docker_jobs_api_token.
+apiVersion: 1
+
+apps:
+  - type: ocs-dockerjobs-app
+    org_id: 1
+    disabled: false
+    jsonData:
+      backendUrl: http://docker-jobs_backend:8000
+      lokiDatasourceUid: ${LOKI_DATASOURCE_UID}
+    secureJsonData:
+      apiToken: $__file{/run/secrets/docker_jobs_api_token}
