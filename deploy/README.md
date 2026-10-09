@@ -24,7 +24,9 @@ The jobs themselves are services `djobs_<job>_<run>_<try>` of the pseudo-stack `
 - **OTLP to Mimir.** The backend pushes to Alloy (`http://alloy:4318`). Alloy's
   `otelcol.exporter.otlphttp "mimir"` in csc-ocs-ansible points at `http://mimir:4318`, where
   Mimir does not listen: it must be `http://mimir:9009/otlp`, or the metrics never arrive.
-  Check with `docker_jobs_scheduler_heartbeat_seconds` in Grafana Explore after the deploy.
+  Check with `{__name__=~"docker_jobs_scheduler_heartbeat(_seconds)?"}` in Grafana Explore after
+  the deploy: which of the two names comes back depends on Mimir's `otel_metric_suffixes_enabled`;
+  the alert rules accept both.
 - **Images** in Nexus: CI pushes `docker-jobs-backend`; the socket-proxy image comes through the
   Docker Hub connector.
 

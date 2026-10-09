@@ -20,8 +20,8 @@ def rules():
     return [rule for group in document["groups"] for rule in group["rules"]]
 
 
-def exported_names(session):
-    """every Prometheus name of the backend's metrics, translated the way Mimir does"""
+def exported_metrics(session):
+    """(name, unit, kind) of every metric the backend exports"""
     reader = InMemoryMetricReader()
     metrics = Metrics(MeterProvider(metric_readers=[reader]), Settings())
     make_job(session)
@@ -35,32 +35,63 @@ def exported_names(session):
     metrics.docker_reachable(True)
     metrics.tick(T0 + HOUR)
 
-    names = set()
+    found = []
     for resource_metrics in reader.get_metrics_data().resource_metrics:
         for scope_metrics in resource_metrics.scope_metrics:
             for metric in scope_metrics.metrics:
-                base = metric.name.replace(".", "_") + ("_seconds" if metric.unit == "s" else "")
                 if isinstance(metric.data, Sum) and metric.data.is_monotonic:
-                    names.add(f"{base}_total")
+                    kind = "counter"
                 elif isinstance(metric.data, Histogram):
-                    names.update({f"{base}_bucket", f"{base}_sum", f"{base}_count"})
+                    kind = "histogram"
                 else:
-                    names.add(base)
+                    kind = "gauge"
+                found.append((metric.name, metric.unit, kind))
+    return found
+
+
+def prometheus_names(metrics, suffixes):
+    """the names Mimir stores them under: with otel_metric_suffixes_enabled, a
+    unit of seconds adds _seconds and a counter _total; without, neither"""
+    names = set()
+    for name, unit, kind in metrics:
+        base = name.replace(".", "_")
+        if suffixes and unit == "s":
+            base += "_seconds"
+        if kind == "histogram":
+            names.update({f"{base}_bucket", f"{base}_sum", f"{base}_count"})
+        elif kind == "counter" and suffixes:
+            names.add(f"{base}_total")
+        else:
+            names.add(base)
     return names
 
 
-def test_every_metric_an_alert_queries_is_exported(session):
+def selected(expression, names):
+    """the names among names that an expression's selectors pick"""
+    regexes = re.findall(r'__name__=~"([^"]+)"', expression)
+    plain = re.findall(r"docker_jobs_[a-z_]+", re.sub(r'__name__=~"[^"]+"', "", expression))
+    picked = {name for name in names for regex in regexes if re.fullmatch(regex, name)}
+    return picked | (set(plain) & names), len(regexes) + len(plain)
+
+
+def test_every_alert_finds_its_metric_with_or_without_mimir_suffixes(session):
+    metrics = exported_metrics(session)
     expressions = [
         query["model"]["expr"] for rule in rules() for query in rule["data"] if "expr" in query["model"]
     ]
-    used = {name for expression in expressions for name in re.findall(r"docker_jobs_[a-z_]+", expression)}
 
-    assert used == {
-        "docker_jobs_runs_finished_total",
-        "docker_jobs_job_gaps",
-        "docker_jobs_scheduler_heartbeat_seconds",
-    }
-    assert used <= exported_names(session)
+    for suffixes in (True, False):
+        names = prometheus_names(metrics, suffixes)
+        picked = set()
+        for expression in expressions:
+            found, selectors = selected(expression, names)
+            assert len(found) == selectors, (suffixes, expression, found)
+            picked |= found
+        assert {name.removesuffix("_total").removesuffix("_seconds") for name in picked} == {
+            "docker_jobs_runs_finished",
+            "docker_jobs_job_gaps",
+            "docker_jobs_scheduler_heartbeat",
+        }
 
 
 def test_the_rules_route_as_docker_jobs():

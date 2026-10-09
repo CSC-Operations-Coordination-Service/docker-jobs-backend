@@ -1,9 +1,10 @@
 """Metrics, pushed over OTLP/HTTP to Alloy, on to Mimir
 
 Instruments carry OpenTelemetry's dotted names. Mimir's OTLP endpoint turns
-them into Prometheus names -- dots to underscores, a unit of seconds adds
-_seconds, a counter adds _total -- and those are what the alert rules
-(deploy/grafana/docker-jobs-alerts.yaml) query:
+them into Prometheus names -- dots to underscores and, when Mimir's
+otel_metric_suffixes_enabled is on, _seconds for a unit of seconds and _total
+for a counter. The alert rules (deploy/grafana/docker-jobs-alerts.yaml) match
+both forms; with the suffixes:
 
     docker_jobs.runs.created         docker_jobs_runs_created_total{docker_job, run_type}
     docker_jobs.runs.finished        docker_jobs_runs_finished_total{docker_job, state}

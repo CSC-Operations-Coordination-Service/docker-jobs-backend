@@ -5,6 +5,8 @@
 # provisioning files). Every rule carries component=docker-jobs: Alertmanager
 # needs a route for it (csc-ocs-ansible stacks/monitoring/alertmanager), or the
 # alerts go to blackhole. Metric names: src/docker_jobs_backend/telemetry.py.
+# The selectors match the names with and without the _total/_seconds suffixes:
+# Mimir adds them only when otel_metric_suffixes_enabled is on.
 apiVersion: 1
 groups:
   - orgId: 1
@@ -22,7 +24,7 @@ groups:
             model:
               refId: A
               instant: true
-              expr: sum by (docker_job) (increase(docker_jobs_runs_finished_total{state="failed"}[15m]))
+              expr: 'sum by (docker_job) (increase({__name__=~"docker_jobs_runs_finished(_total)?", state="failed"}[15m]))'
           - refId: B
             datasourceUid: __expr__
             model:
@@ -79,7 +81,7 @@ groups:
             model:
               refId: A
               instant: true
-              expr: time() - max(docker_jobs_scheduler_heartbeat_seconds)
+              expr: 'time() - max({__name__=~"docker_jobs_scheduler_heartbeat(_seconds)?"})'
           - refId: B
             datasourceUid: __expr__
             model:

@@ -92,7 +92,10 @@ overridable per job. One attempt: `{swarm_stack="djobs", swarm_service="djobs_<j
 
 ## Metrics and alerts
 
-OTLP/HTTP to Alloy (`OTEL_EXPORTER_OTLP_ENDPOINT`), on to Mimir; `docker_job` is the job:
+OTLP/HTTP to Alloy (`OTEL_EXPORTER_OTLP_ENDPOINT`), on to Mimir; `docker_job` is the job. The
+names below carry the `_total`/`_seconds` suffixes Mimir adds when `otel_metric_suffixes_enabled`
+is on; without it they end at the base name (`docker_jobs_runs_finished`), and the alert rules
+match both:
 
 | Prometheus name | |
 | --- | --- |
