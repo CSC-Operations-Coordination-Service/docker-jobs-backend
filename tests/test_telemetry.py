@@ -184,3 +184,15 @@ def test_gaps_are_capped_so_a_huge_backlog_stays_cheap(metrics, reader, session)
 
     assert points(reader, "docker_jobs.job.gaps") == {attrs(docker_job="collect"): GAP_LIMIT}
     assert GAP_LIMIT == 1000
+
+
+def test_a_success_covers_its_own_interval_only(metrics, reader, session):
+    job = make_job(session, schedule_cursor=T0 + 2 * HOUR)
+    longer = make_run(job, T0, state=RunState.FAILED, attempt_state=AttemptState.FAILED)
+    longer.data_interval_end = T0 + 2 * HOUR  # the schedule was two-hourly for a while
+    session.add_all([make_run(job, T0, state=RunState.SUCCESS, attempt_state=AttemptState.SUCCESS), longer])
+    session.commit()
+
+    metrics.refresh(session, T0 + 3 * HOUR)
+
+    assert points(reader, "docker_jobs.job.gaps") == {attrs(docker_job="collect"): 1}

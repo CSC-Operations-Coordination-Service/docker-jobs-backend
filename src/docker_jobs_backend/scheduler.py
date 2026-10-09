@@ -123,18 +123,19 @@ class Scheduler:
                 self.metrics.intervals_skipped(job.name, skipped)
             due = [latest]
 
-        existing = set(
-            session.scalars(
-                select(Run.logical_date).where(
+        existing = {
+            (start, end)
+            for start, end in session.execute(
+                select(Run.logical_date, Run.data_interval_end).where(
                     Run.job_id == job.id,
                     Run.run_type == RunType.SCHEDULED,
                     Run.logical_date >= due[0].start,
                     Run.logical_date <= due[-1].start,
                 )
             )
-        )
+        }
         for interval in due:
-            if interval.start not in existing:
+            if (interval.start, interval.end) not in existing:
                 self.lifecycle.create_run(session, job, interval, RunType.SCHEDULED, now)
 
         job.schedule_cursor = due[-1].end

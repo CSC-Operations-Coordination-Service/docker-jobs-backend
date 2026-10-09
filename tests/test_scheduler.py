@@ -266,3 +266,15 @@ def test_an_attempt_that_cannot_launch_does_not_stop_the_others(scheduler, sessi
     assert [spec.service_name for spec in runner.launched] == ["djobs_bbb_2_1"]
     [run] = runs_of(session_factory, "aaa")
     assert run.attempts[0].state == "pending"
+
+
+def test_a_schedule_change_never_leaves_a_hole(scheduler, session, session_factory):
+    job = make_job(session)
+    scheduler.schedule(T0 + 13 * HOUR)  # hourly runs up to [12:00, 13:00)
+    job.schedule = "0 */2 * * *"
+    session.commit()
+
+    scheduler.schedule(T0 + 14 * HOUR)
+
+    last = runs_of(session_factory)[-1]
+    assert (last.logical_date, last.data_interval_end) == (T0 + 12 * HOUR, T0 + 14 * HOUR)

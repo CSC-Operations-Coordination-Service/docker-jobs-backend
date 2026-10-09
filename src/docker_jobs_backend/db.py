@@ -172,12 +172,15 @@ class Run(Base):
 
     __tablename__ = "runs"
     __table_args__ = (
-        # the scheduler's idempotency: one scheduled run per interval;
-        # manual runs may repeat one
+        # the scheduler's idempotency: one scheduled run per interval --
+        # start AND end, so a schedule change overlaps an old interval rather
+        # than skipping the new one that starts with it; manual runs may
+        # repeat one
         Index(
             "uq_runs_scheduled_interval",
             "job_id",
             "logical_date",
+            "data_interval_end",
             unique=True,
             sqlite_where=text("run_type = 'scheduled'"),
         ),

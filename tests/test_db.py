@@ -104,3 +104,13 @@ def test_concurrent_read_modify_write_loses_nothing(session_factory):
 
     with session_factory() as session:
         assert session.get(Job, job_id).max_active_runs == 40
+
+
+def test_an_interval_of_another_length_may_share_its_start(session):
+    job = make_job(session)
+    hourly = make_run(job)
+    two_hours = make_run(job)
+    two_hours.data_interval_end = T0 + 2 * HOUR
+    session.add_all([hourly, two_hours])
+
+    session.commit()

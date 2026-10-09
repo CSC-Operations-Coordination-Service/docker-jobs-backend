@@ -105,20 +105,22 @@ def count_gaps(
     until = now - grace
     since = now - lookback
     lower = since if job.schedule_cursor is None else max(job.schedule_cursor, since)
+    # an interval is its start and its end: after a schedule change, a success
+    # over [12:00, 13:00) does not cover [12:00, 14:00)
     unscheduled = {
-        interval.start
+        (interval.start, interval.end)
         for interval in due_intervals(job.schedule, job.start_date, job.end_date, lower, until, GAP_LIMIT)
     }
 
     rows = session.execute(
-        select(Run.logical_date, Run.state).where(
+        select(Run.logical_date, Run.data_interval_end, Run.state).where(
             Run.job_id == job.id,
             Run.data_interval_end > since,
             Run.data_interval_end <= until,
         )
     ).all()
-    done = {logical for logical, state in rows if state == RunState.SUCCESS}
-    undone = {logical for logical, state in rows if state in NOT_DONE_STATES}
+    done = {(start, end) for start, end, state in rows if state == RunState.SUCCESS}
+    undone = {(start, end) for start, end, state in rows if state in NOT_DONE_STATES}
 
     return len((unscheduled | undone) - done)
 
