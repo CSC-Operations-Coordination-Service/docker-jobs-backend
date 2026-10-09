@@ -52,7 +52,9 @@ __all__ = ["DURATION_BUCKETS", "JOB", "Metrics", "count_gaps", "create_meter_pro
 LOGGER = logging.getLogger(__name__)
 
 JOB = "docker_job"
-GAP_LIMIT = 10_000
+# the gaps count stops here: past it the alert fires anyway, and counting
+# further would cost every tick a cron walk under the database lock
+GAP_LIMIT = 1_000
 ACTIVE_STATES = (RunState.QUEUED, RunState.RUNNING, RunState.RETRYING)
 NOT_DONE_STATES = frozenset({RunState.FAILED, RunState.CANCELLED, RunState.QUEUED, RunState.RETRYING})
 RUN_OUTCOMES = (RunState.SUCCESS, RunState.FAILED, RunState.CANCELLED)

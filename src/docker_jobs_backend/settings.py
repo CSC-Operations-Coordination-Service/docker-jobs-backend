@@ -47,8 +47,9 @@ class Settings(BaseSettings):
     # Attempts running at once across all jobs, 0 for no limit: the 01:00
     # burst of recollects is what this is for.
     max_running: int = Field(default=8, ge=0)
-    # Runs one job may create per tick while catching up: a year of hourly
-    # intervals becomes queued work over minutes, not one transaction.
+    # Runs of one job that may wait to start at once: catching up a year of
+    # hourly intervals queues them a batch at a time, as earlier ones run,
+    # never as one huge queue every tick must read.
     catchup_batch: int = Field(default=100, ge=1)
     # An attempt whose task never starts (no node matches its constraints,
     # the image cannot be pulled) times out after this, not after the job's

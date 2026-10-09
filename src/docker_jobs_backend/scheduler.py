@@ -92,13 +92,24 @@ class Scheduler:
                     session.commit()
 
     def _schedule_job(self, session: Session, job: Job, now: datetime.datetime) -> None:
+        # backpressure: at most CATCHUP_BATCH runs of a job wait at once, so a
+        # long backlog never becomes a huge queue that every tick must read
+        queued = session.scalar(
+            select(func.count())
+            .select_from(Run)
+            .where(Run.job_id == job.id, Run.state == RunState.QUEUED)
+        )
+        room = self.settings.catchup_batch - queued
+        if room <= 0:
+            return
+
         due = due_intervals(
             job.schedule,
             job.start_date,
             job.end_date,
             job.schedule_cursor,
             now,
-            self.settings.catchup_batch,
+            room,
         )
         if not due:
             return

@@ -4,10 +4,10 @@ import time
 
 import pytest
 from factories import DAY, HOUR, MINUTE, SECOND, T0, attrs, make_job, make_run, points
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 
-from docker_jobs_backend.db import Job, Run
+from docker_jobs_backend.db import Job, Run, RunState
 from docker_jobs_backend.runner import RunnerUnavailable
 from docker_jobs_backend.scheduler import SchedulerThread, exclusive_lock
 
@@ -71,12 +71,19 @@ def test_catch_up_is_batched_and_resumes(scheduler, session, session_factory):
     scheduler.schedule(T0)
     assert len(runs_of(session_factory)) == 100
 
+    # backpressure: no more while a whole batch still waits
     scheduler.schedule(T0)
+    assert len(runs_of(session_factory)) == 100
+
+    with session_factory() as other:
+        other.execute(update(Run).where(Run.id <= 60).values(state=RunState.SUCCESS))
+        other.commit()
     scheduler.schedule(T0)
+
     runs = runs_of(session_factory)
-    assert len(runs) == 240
-    assert len(set(starts(runs))) == 240
-    assert runs[-1].data_interval_end == T0
+    assert len(runs) == 160
+    assert len(set(starts(runs))) == 160
+    assert runs[-1].data_interval_end == T0 - 80 * HOUR
 
 
 def test_only_the_oldest_run_starts_when_one_may_run_at_a_time(scheduler, session, session_factory, runner):

@@ -1,9 +1,9 @@
 """Metrics: counters by job, gauges from the database snapshot"""
 
-from factories import HOUR, MINUTE, T0, attrs, make_job, make_run, points
+from factories import DAY, HOUR, MINUTE, T0, attrs, make_job, make_run, points
 
 from docker_jobs_backend.db import AttemptState, Reason, RunState, RunType
-from docker_jobs_backend.telemetry import DURATION_BUCKETS
+from docker_jobs_backend.telemetry import DURATION_BUCKETS, GAP_LIMIT
 
 OUTCOMES = ("success", "failed", "timeout", "lost", "cancelled")
 
@@ -174,3 +174,13 @@ def test_heartbeat_and_docker_up_appear_with_the_scheduler(metrics, reader):
     assert points(reader, "docker_jobs.docker.up") == {attrs(): 0}
     assert points(reader, "docker_jobs.scheduler.heartbeat") == {attrs(): (T0 + HOUR).timestamp()}
     assert metrics.last_tick == T0 + HOUR
+
+
+def test_gaps_are_capped_so_a_huge_backlog_stays_cheap(metrics, reader, session):
+    # a minutely job never scheduled for the whole 7-day lookback: 10080 intervals
+    make_job(session, schedule="* * * * *", start_date=T0 - 30 * DAY)
+
+    metrics.refresh(session, T0)
+
+    assert points(reader, "docker_jobs.job.gaps") == {attrs(docker_job="collect"): GAP_LIMIT}
+    assert GAP_LIMIT == 1000

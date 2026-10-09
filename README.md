@@ -14,7 +14,8 @@ It replaces the host crontabs (and the Ofelia plan) of csc-ocs-ansible's ROADMAP
   `data_interval_start` = 00:00: `--start {{ data_interval_start | iso_ms }}` renders
   `--start 2026-10-09T00:00:00.000Z`.
 - **Catch-up** (default on): after downtime, or with a `start_date` in the past, every missed
-  interval gets its run, oldest first, at most `CATCHUP_BATCH` per tick. Off: only the latest
+  interval gets its run, oldest first, with at most `CATCHUP_BATCH` runs of a job waiting at once.
+  Off: only the latest
   interval runs, the others are counted as skipped.
 - **Attempts.** A run's try is a `replicated-job` service `djobs_<job>_<run>_<try>`, never
   restarted by Swarm. On failure (non-zero exit, rejected task, lost service, timeout) the run

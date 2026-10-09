@@ -3,11 +3,13 @@
 SQLite on the backend's volume, shared by the API's worker threads and the
 scheduler thread. Three settings make that safe:
 
-* WAL, so readers are not blocked by the writer;
-* BEGIN IMMEDIATE for every transaction: the write lock is taken up front, so
-  a read-then-write never fails half-way with "database is locked" (a
-  deferred transaction cannot upgrade once another connection wrote) and two
-  writers queue for busy_timeout instead;
+* BEGIN IMMEDIATE for every transaction, reads included: the write lock is
+  taken up front, so a read-then-write never fails half-way with "database is
+  locked" (a deferred transaction cannot upgrade once another connection
+  wrote), and transactions run one at a time, each waiting up to
+  busy_timeout. That serialises readers too: every transaction is kept short,
+  and none is held while Docker answers (lifecycle.py);
+* WAL, for crash safety and cheap commits;
 * foreign_keys=ON, for the ON DELETE CASCADE of runs and attempts.
 
 SQLite keeps no timezone: every datetime goes through UTCDateTime, stored as
