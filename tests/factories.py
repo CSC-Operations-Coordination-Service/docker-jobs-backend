@@ -3,6 +3,16 @@
 import datetime
 
 from docker_jobs_backend.db import Attempt, AttemptState, Job, Reason, Run, RunState, RunType
+from docker_jobs_backend.runner import (
+    ATTEMPT_LABEL,
+    COMPLETE,
+    FAILED,
+    GONE,
+    PENDING,
+    RUNNING,
+    RunnerUnavailable,
+    TaskStatus,
+)
 
 UTC = datetime.UTC
 T0 = datetime.datetime(2026, 10, 9, tzinfo=UTC)
@@ -108,3 +118,69 @@ def points(reader, name) -> dict:
                     value = point.count if hasattr(point, "bucket_counts") else point.value
                     found[frozenset(point.attributes.items())] = value
     return found
+
+
+class FakeRunner:
+    """the Runner, in memory: services, their task states, what was removed"""
+
+    def __init__(self):
+        self.launched = []  # LaunchSpec, in launch order
+        self.services = {}  # service id -> attempt token, as managed_services()
+        self.statuses = {}  # service id -> TaskStatus
+        self.removed = []
+        self.launch_error = None  # an exception launch() raises
+        self.unavailable = False
+        self.existing_objects = set()  # secret, config and network names
+
+    def _reachable(self):
+        if self.unavailable:
+            raise RunnerUnavailable("docker unreachable: connection refused")
+
+    def launch(self, spec):
+        self._reachable()
+        if self.launch_error is not None:
+            raise self.launch_error
+        self.launched.append(spec)
+        service_id = f"svc-{len(self.launched)}"
+        self.services[service_id] = spec.labels[ATTEMPT_LABEL]
+        self.statuses[service_id] = TaskStatus(PENDING)
+        return service_id
+
+    def start(self, service_id):
+        """the service's task runs"""
+        self.statuses[service_id] = TaskStatus(RUNNING, node_id="node-1")
+
+    def finish(self, service_id, exit_code=0):
+        """the service's task exits"""
+        if exit_code == 0:
+            self.statuses[service_id] = TaskStatus(COMPLETE, exit_code=0, node_id="node-1")
+        else:
+            self.statuses[service_id] = TaskStatus(
+                FAILED, exit_code=exit_code, error=f"task: non-zero exit ({exit_code})", node_id="node-1"
+            )
+
+    def status(self, service_id):
+        self._reachable()
+        if service_id not in self.services:
+            return TaskStatus(GONE, error="service no longer exists")
+        return self.statuses.get(service_id, TaskStatus(PENDING))
+
+    def remove(self, service_id):
+        self._reachable()
+        self.removed.append(service_id)
+        self.services.pop(service_id, None)
+        self.statuses.pop(service_id, None)
+
+    def managed_services(self):
+        self._reachable()
+        return dict(self.services)
+
+    def missing_objects(self, secrets, configs, networks):
+        self._reachable()
+        wanted = (("secret", secrets), ("config", configs), ("network", networks))
+        return [
+            f"{kind} {name!r} does not exist"
+            for kind, names in wanted
+            for name in names
+            if name not in self.existing_objects
+        ]

@@ -1,11 +1,13 @@
 """Fixtures: settings on a temporary database, and the application around them"""
 
 import pytest
+from factories import FakeRunner
 from fastapi.testclient import TestClient
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 
 from docker_jobs_backend.db import create_session_factory
+from docker_jobs_backend.lifecycle import Lifecycle
 from docker_jobs_backend.main import create_app
 from docker_jobs_backend.settings import Settings
 from docker_jobs_backend.telemetry import Metrics
@@ -52,3 +54,13 @@ def reader_fixture():
 @pytest.fixture(name="metrics")
 def metrics_fixture(reader, settings):
     return Metrics(MeterProvider(metric_readers=[reader]), settings)
+
+
+@pytest.fixture(name="runner")
+def runner_fixture():
+    return FakeRunner()
+
+
+@pytest.fixture(name="lifecycle")
+def lifecycle_fixture(runner, metrics, settings):
+    return Lifecycle(runner, metrics, settings)
