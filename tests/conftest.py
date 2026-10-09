@@ -9,6 +9,7 @@ from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from docker_jobs_backend.db import create_session_factory
 from docker_jobs_backend.lifecycle import Lifecycle
 from docker_jobs_backend.main import create_app
+from docker_jobs_backend.scheduler import Scheduler
 from docker_jobs_backend.settings import Settings
 from docker_jobs_backend.telemetry import Metrics
 
@@ -64,3 +65,8 @@ def runner_fixture():
 @pytest.fixture(name="lifecycle")
 def lifecycle_fixture(runner, metrics, settings):
     return Lifecycle(runner, metrics, settings)
+
+
+@pytest.fixture(name="scheduler")
+def scheduler_fixture(session_factory, lifecycle, settings, metrics):
+    return Scheduler(session_factory, lifecycle, settings, metrics)
