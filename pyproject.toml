@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61", "setuptools_scm[toml]>=8", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docker-jobs-backend"
+description = "Scheduled jobs on Docker Swarm: cron intervals, templated commands, retries, reruns, Loki logs, OTLP metrics"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Serco - Space unit", email = "ocsproc@serco.com" }]
+requires-python = ">=3.11"
+dynamic = ["version"]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.7",
+    "sqlalchemy>=2.0.30",
+    "croniter>=6.0",
+    "jinja2>=3.1",
+    "docker>=7.1",
+    "opentelemetry-sdk>=1.30",
+    "opentelemetry-exporter-otlp-proto-http>=1.30",
+]
+
+[project.optional-dependencies]
+testing = [
+    "pytest",
+    "pytest-cov",
+    "httpx2",
+    "pyyaml",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+fallback_version = "0.1.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov docker_jobs_backend --cov-report term-missing --verbose"
