@@ -1,0 +1,100 @@
+# Grafana alert rules of the docker-jobs backend, as a provisioning file. Mount
+# it in the Grafana that holds the Mimir datasource, at
+# /etc/grafana/provisioning/alerting/docker-jobs-alerts.yaml, and give that
+# Grafana MIMIR_DATASOURCE_UID in its environment (Grafana expands ${...} in
+# provisioning files). Every rule carries component=docker-jobs: Alertmanager
+# needs a route for it (csc-ocs-ansible stacks/monitoring/alertmanager), or the
+# alerts go to blackhole. Metric names: src/docker_jobs_backend/telemetry.py.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: docker-jobs
+    folder: Docker jobs
+    interval: 1m
+    rules:
+      - uid: docker-jobs-run-failed
+        title: Docker job failed
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 900, to: 0}
+            datasourceUid: ${MIMIR_DATASOURCE_UID}
+            model:
+              refId: A
+              instant: true
+              expr: sum by (docker_job) (increase(docker_jobs_runs_finished_total{state="failed"}[15m]))
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels: {component: docker-jobs, origin: metric}
+        annotations:
+          summary: A docker job run failed after its retries
+          description: >-
+            Fix the cause, then rerun it from the Docker jobs app; each attempt
+            of the run links to its logs in Loki.
+      - uid: docker-jobs-gaps
+        title: Docker job intervals missing
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ${MIMIR_DATASOURCE_UID}
+            model:
+              refId: A
+              instant: true
+              expr: max by (docker_job) (docker_jobs_job_gaps)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels: {component: docker-jobs, origin: metric}
+        annotations:
+          summary: Intervals of a docker job ended without data
+          description: >-
+            Runs failed or were cancelled, never started, or were never
+            scheduled (the scheduler is behind). Rerun or trigger them from the
+            Docker jobs app.
+      - uid: docker-jobs-scheduler-down
+        title: Docker jobs scheduler down
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ${MIMIR_DATASOURCE_UID}
+            model:
+              refId: A
+              instant: true
+              expr: time() - max(docker_jobs_scheduler_heartbeat_seconds)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [300]}
+        # no heartbeat at all is the scheduler down too
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 5m
+        labels: {component: docker-jobs, origin: metric}
+        annotations:
+          summary: The docker-jobs scheduler has not completed a tick for 5 minutes
+          description: >-
+            No job is being scheduled or launched. docker_jobs_docker_up says
+            whether Docker (the socket-proxy) is the reason.

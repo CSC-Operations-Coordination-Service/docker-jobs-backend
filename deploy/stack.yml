@@ -1,0 +1,16 @@
+---
+# Ansible-only manifest, in the format of csc-ocs-ansible's docker_swarm_stack
+# role: copy this folder to csc-ocs-ansible/stacks/platform/docker-jobs, vault
+# the token as secrets/api-token.vault, and add
+# playbooks/deploy_platform/docker-jobs.<env>.yml whose stack_env fills the
+# variables of .env.example. Not read by deploy.sh.
+stack_name: docker-jobs
+stack_src: "{{ playbook_dir }}/../../stacks/platform/docker-jobs"
+
+stack_external_networks:
+  - "{{ monitoring_network }}"
+
+stack_secrets:
+  - name: docker_jobs_api_token
+    src: secrets/api-token.vault
+    env_var: DJ_API_TOKEN_SECRET_NAME

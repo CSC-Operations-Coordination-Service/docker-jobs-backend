@@ -1,0 +1,123 @@
+# ===========================================================================
+# docker-jobs stack -- runs scheduled jobs as swarm services
+#
+# PLAIN compose in the csc-ocs-ansible style: no Jinja, everything variable in
+# ./.env, the secret an external object with a versioned name. Deploy by hand
+# with ./deploy.sh, or copy this folder to
+# csc-ocs-ansible/stacks/platform/docker-jobs and let the docker_swarm_stack
+# role do the same from stack.yml.
+#
+#   backend        docker-jobs-backend: the Grafana app's API, and the
+#                  scheduler. ONE replica, on the node labelled
+#                  docker-jobs=true: its SQLite file is on that node's volume.
+#                  Not routed by Traefik: Grafana calls it, with the token.
+#   socket-proxy   the only holder of the docker socket. Reachable from the
+#                  backend only (non-attachable overlay).
+#
+# The jobs are services of the pseudo-stack ${DJ_RUN_STACK}
+# (djobs_<job>_<run>_<try>), created and removed by the backend. They are not
+# in this file, and `docker stack rm ${DJ_RUN_STACK}` would kill them.
+# ===========================================================================
+
+x-logging-loki: &logging-loki
+  driver: loki
+  options:
+    loki-url: "http://127.0.0.1:3100/loki/api/v1/push"
+    loki-retries: "5"
+    loki-batch-size: "400"
+    mode: "non-blocking"
+
+services:
+  backend:
+    image: ${DJ_IMAGE_REGISTRY}/docker-jobs-backend:${DJ_BACKEND_VERSION}
+    environment:
+      DATABASE_URL: sqlite:////data/docker-jobs.db
+      LOCK_FILE: /data/scheduler.lock
+      DOCKER_HOST: tcp://socket-proxy:2375
+      RUN_STACK: ${DJ_RUN_STACK}
+      MAX_RUNNING: ${DJ_MAX_RUNNING}
+      API_TOKEN_FILE: /run/secrets/dj_api_token
+      USER_HEADER: X-Grafana-User
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
+      OTEL_SERVICE_NAME: docker-jobs-backend
+    secrets:
+      - source: dj_api_token
+        target: dj_api_token
+        uid: "10001"
+        gid: "10001"
+        mode: 0400
+    volumes:
+      - dj-data:/data
+    read_only: true
+    tmpfs: [/tmp]
+    # internal: the socket-proxy. monitoring: Alloy (OTLP), and the Grafana
+    # that runs the app.
+    networks: [internal, monitoring]
+    logging: *logging-loki
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 5s
+        # never two schedulers: the old one stops before the new one starts
+        order: stop-first
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          # the volume with the database is on this node
+          - node.labels.docker-jobs == true
+
+  socket-proxy:
+    image: ${SOCKET_PROXY_IMAGE}
+    environment:
+      SERVICES: "1"
+      TASKS: "1"
+      SECRETS: "1"
+      CONFIGS: "1"
+      NETWORKS: "1"
+      # POST is global in socket-proxy: it lets the backend create and remove
+      # services -- and, with the sections above, secrets, configs and
+      # networks. Only the backend can reach this proxy.
+      POST: "1"
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+    networks: [internal]
+    logging: *logging-loki
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 16M
+      placement:
+        constraints:
+          # /services and /tasks only answer on a manager
+          - node.role == manager
+
+secrets:
+  dj_api_token:
+    external: true
+    name: ${DJ_API_TOKEN_SECRET_NAME}
+
+volumes:
+  dj-data:
+
+networks:
+  # stack-owned, becomes docker-jobs_internal; not attachable
+  internal:
+    driver: overlay
+    attachable: false
+  # Alloy (alias alloy, OTLP/HTTP on 4318) and Grafana: ocs-monitoring in prod
+  monitoring:
+    external: true
+    name: ${MONITORING_NETWORK}
