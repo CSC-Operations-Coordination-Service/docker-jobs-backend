@@ -3,7 +3,7 @@
 import datetime
 
 import pytest
-from factories import attrs, points
+from factories import DAY, T0, attrs, make_job, points
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
@@ -252,3 +252,24 @@ def test_the_backends_own_network_and_volume_are_refused(client):
 
     assert (socket.status_code, data.status_code) == (422, 422)
     assert "backend's own" in socket.text and "backend's own" in data.text
+
+
+def test_an_end_date_before_the_stored_start_is_a_422_and_nothing_breaks(client):
+    create(client)
+
+    response = client.put("/api/v1/jobs/collect", json=spec_body(end_date="2020-01-01T00:00:00Z"))
+
+    assert response.status_code == 422
+    assert client.get("/api/v1/jobs").status_code == 200
+    assert client.get("/api/v1/jobs/collect").json()["end_date"] is None
+
+
+def test_a_job_stored_inconsistent_is_still_listed(client, session_factory):
+    with session_factory() as session:
+        make_job(session, end_date=T0 - DAY, command=["{{ params.gone }}"], schedule="0 0 30 2 *")
+
+    response = client.get("/api/v1/jobs")
+
+    assert response.status_code == 200
+    assert response.json()[0]["command"] == ["{{ params.gone }}"]
+    assert response.json()[0]["next_fire_at"] is None

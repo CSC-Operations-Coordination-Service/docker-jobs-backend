@@ -130,6 +130,12 @@ def update_job(
 ) -> JobOut:
     check_policy(body, settings)
     job = find_job(session, name)
+    start_date = body.start_date or job.start_date
+    if body.end_date is not None and body.end_date <= start_date:
+        raise HTTPException(
+            status_code=422,
+            detail=f"end_date must come after start_date ({start_date.isoformat()})",
+        )
     now = utcnow()
     for key, value in job_columns(body).items():
         setattr(job, key, value)

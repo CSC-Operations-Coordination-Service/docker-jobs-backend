@@ -19,6 +19,7 @@ __all__ = [
     "AttemptOut",
     "ConfigRef",
     "JobCreate",
+    "JobFields",
     "JobOut",
     "JobSpec",
     "MountSpec",
@@ -84,8 +85,8 @@ class MountSpec(BaseModel):
     read_only: bool = False
 
 
-class JobSpec(BaseModel):
-    """a job's definition, as PUT /jobs/{name} takes it"""
+class JobFields(BaseModel):
+    """a job's definition: the fields, without the input checks"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -111,6 +112,10 @@ class JobSpec(BaseModel):
     mounts: List[MountSpec] = Field(default_factory=list)
     cpu_limit: Optional[float] = Field(default=None, gt=0)
     memory_limit_mb: Optional[int] = Field(default=None, gt=0)
+
+
+class JobSpec(JobFields):
+    """a job's definition, as PUT /jobs/{name} takes it: checked"""
 
     @field_validator("schedule")
     @classmethod
@@ -147,11 +152,13 @@ class JobCreate(JobSpec):
     name: str = Field(pattern=NAME_PATTERN)
 
 
-class JobOut(JobCreate):
-    """a job, as the API returns it"""
+class JobOut(JobFields):
+    """a job, as the API returns it -- as stored, never re-checked: a job saved
+    before a check existed must still be listed"""
 
     model_config = ConfigDict(extra="ignore")
 
+    name: str
     start_date: datetime.datetime
     schedule_cursor: Optional[datetime.datetime] = None
     created_at: datetime.datetime
@@ -263,7 +270,10 @@ def job_columns(spec: JobSpec) -> dict:
 def _next_fire(job: Job, now: datetime.datetime) -> Optional[datetime.datetime]:
     if not job.enabled:
         return None
-    [fire] = next_fire_times(job.schedule, max(now, job.start_date), 1)
+    try:
+        [fire] = next_fire_times(job.schedule, max(now, job.start_date), 1)
+    except Exception:  # pylint: disable=broad-except -- a schedule stored before it was checked
+        return None
     if job.end_date is not None and fire > job.end_date:
         return None
     return fire
