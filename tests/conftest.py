@@ -36,9 +36,15 @@ def session_fixture(session_factory):
 
 
 @pytest.fixture(name="make_app")
-def make_app_fixture(settings):
-    """builds the application when called, so a test can change settings first"""
-    return lambda: create_app(settings)
+def make_app_fixture(settings, session_factory, runner, metrics):
+    """builds the application when called, on the test's fakes, scheduler thread off"""
+    return lambda: create_app(
+        settings,
+        session_factory=session_factory,
+        runner=runner,
+        metrics=metrics,
+        start_scheduler=False,
+    )
 
 
 @pytest.fixture(name="client")
