@@ -122,6 +122,7 @@ intervals missing for 15 min; no scheduler tick for 5 min (or no heartbeat at al
 | `MAX_RUNNING`, `CATCHUP_BATCH`, `START_TIMEOUT_SECONDS` | `8`, `100`, `600` | |
 | `RUN_STACK` | `djobs` | one per backend per swarm |
 | `ALLOW_BIND_MOUNTS` | `false` | |
+| `PROTECTED_NETWORKS`, `PROTECTED_VOLUMES` | `docker-jobs-socket`, `docker-jobs-data` | the backend's own: refused to jobs |
 | `LOKI_URL`, `LOKI_RETRIES`, `LOKI_BATCH_SIZE`, `LOKI_MODE` | the house block | |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_METRIC_EXPORT_INTERVAL`, `OTEL_SDK_DISABLED` | OTel's | |
 | `OTEL_SERVICE_NAME` | `docker-jobs-backend` | |

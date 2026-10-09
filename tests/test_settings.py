@@ -44,3 +44,10 @@ def test_the_api_token_can_be_a_swarm_secret(tmp_path, monkeypatch):
     monkeypatch.setenv("API_TOKEN_FILE", str(secret))
 
     assert Settings().api_token == "from-file"
+
+
+def test_the_protected_objects_are_comma_separated(monkeypatch):
+    monkeypatch.setenv("PROTECTED_NETWORKS", "docker-jobs-socket, other-net")
+
+    assert Settings().protected_networks == ["docker-jobs-socket", "other-net"]
+    assert Settings().protected_volumes == ["docker-jobs-data"]

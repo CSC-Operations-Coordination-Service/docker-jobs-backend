@@ -43,6 +43,17 @@ class FakeObjects:
             return [item for item in self.items if item.name.startswith(filters["name"])]
         return list(self.items)
 
+    def get(self, reference):
+        # like the daemon: a full id, an exact name, or a unique id prefix
+        for match in (
+            [item for item in self.items if item.id == reference],
+            [item for item in self.items if item.name == reference],
+            [item for item in self.items if item.id.startswith(reference)],
+        ):
+            if len(match) == 1:
+                return match[0]
+        raise docker.errors.NotFound(f"network {reference} not found")
+
 
 class FakeServices:
     def __init__(self):
@@ -97,7 +108,7 @@ class FakeClient:
         self.services = FakeServices()
         self.secrets = FakeObjects(**{"cdse": "sec-1", "cdse-v2": "sec-2"})
         self.configs = FakeObjects(**{"odata-conf": "cfg-1"})
-        self.networks = FakeObjects(**{"ocs_rabbitmq": "net-1"})
+        self.networks = FakeObjects(**{"ocs_rabbitmq": "net-1", "docker-jobs-socket": "sock-9"})
         self.api = FakeAPI()
 
 
@@ -353,3 +364,14 @@ def test_an_image_reference_docker_py_refuses_is_the_jobs_fault(swarm, docker_cl
 
     with pytest.raises(LaunchError, match="cannot contain a scheme"):
         swarm.launch(spec(image="https://nexus/img:1"))
+
+
+def test_the_backends_own_network_is_refused_however_it_is_named(swarm):
+    for reference in ("docker-jobs-socket", "sock-9", "so"):
+        with pytest.raises(LaunchError, match="the backend's own"):
+            swarm.launch(spec(networks=[reference]))
+
+
+def test_an_unknown_network_fails_the_launch(swarm):
+    with pytest.raises(LaunchError, match="'ghost' does not exist"):
+        swarm.launch(spec(networks=["ghost"]))

@@ -8,6 +8,11 @@ everything variable in `.env`, the API token an external secret with a content-h
 | `backend` | `docker-jobs-backend` | `internal`, monitoring | API + scheduler. **1 replica**, `stop-first`, on the node labelled `docker-jobs=true` (its SQLite volume). Not routed by Traefik |
 | `socket-proxy` | `tecnativa/docker-socket-proxy:v0.5.0` | `internal` | holds the docker socket, on a manager; services/tasks/secrets/configs/networks + POST |
 
+The `internal` network is named `docker-jobs-socket` and the volume `docker-jobs-data`: the
+backend refuses both to every job (`PROTECTED_NETWORKS`, `PROTECTED_VOLUMES`), because a swarm
+service can join a non-attachable overlay, and from the socket-proxy a job could create any
+service. Rename them here and in those two settings together.
+
 The jobs themselves are services `djobs_<job>_<run>_<try>` of the pseudo-stack `djobs`
 (`DJ_RUN_STACK`): `docker stack services djobs` lists what runs now. Never
 `docker stack rm djobs`.

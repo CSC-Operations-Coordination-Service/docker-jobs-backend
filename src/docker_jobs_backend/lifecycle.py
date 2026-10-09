@@ -43,6 +43,7 @@ from docker_jobs_backend.db import (
     RunState,
     RunType,
 )
+from docker_jobs_backend.policy import refusals
 from docker_jobs_backend.runner import (
     ATTEMPT_LABEL,
     COMPLETE,
@@ -173,6 +174,12 @@ class Lifecycle:
             rendered = render(job.entrypoint, job.command, job.env, context)
         except TemplateProblem as exc:
             self._finish(attempt, AttemptState.FAILED, now, error=f"template {exc}")
+            session.commit()
+            return
+
+        problems = refusals(job.networks, job.mounts, self.settings)
+        if problems:
+            self._finish(attempt, AttemptState.FAILED, now, error="refused: " + "; ".join(problems))
             session.commit()
             return
 

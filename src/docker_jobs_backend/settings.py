@@ -8,10 +8,10 @@ docker-py reads DOCKER_HOST, the OTLP exporter reads OTEL_EXPORTER_OTLP_*.
 
 import functools
 import os
-from typing import Optional
+from typing import Annotated, List, Optional
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 __all__ = ["Settings", "get_settings"]
 
@@ -60,6 +60,16 @@ class Settings(BaseSettings):
     run_stack: str = Field(default="djobs", pattern=r"^[a-z][a-z0-9-]{0,9}$")
     # A bind mount is root on the node: refused unless explicitly allowed.
     allow_bind_mounts: bool = False
+    # The backend's own swarm objects, which no job may use: the network the
+    # socket-proxy listens on (from it, a job could create any service) and
+    # the volume of the database. The names deploy/docker-compose.yml gives
+    # them. Comma-separated.
+    protected_networks: Annotated[List[str], NoDecode] = Field(
+        default_factory=lambda: ["docker-jobs-socket"]
+    )
+    protected_volumes: Annotated[List[str], NoDecode] = Field(
+        default_factory=lambda: ["docker-jobs-data"]
+    )
 
     # --- Logs: the loki driver of every job container ----------------------
     loki_url: str = "http://127.0.0.1:3100/loki/api/v1/push"
@@ -81,6 +91,14 @@ class Settings(BaseSettings):
     user_header: str = "X-Grafana-User"
     # Shared secret of the Grafana app's proxy route; empty disables the check.
     api_token: str = ""
+
+    @field_validator("protected_networks", "protected_volumes", mode="before")
+    @classmethod
+    def _split(cls, value):
+        """accept a comma-separated string, which is what an env var holds"""
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     def model_post_init(self, __context) -> None:
         """swarm secrets: API_TOKEN_FILE wins over API_TOKEN"""

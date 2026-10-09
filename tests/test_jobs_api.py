@@ -244,3 +244,11 @@ def test_preview_without_docker_says_so(client, runner):
     body = client.post("/api/v1/preview", json={"job": job_body()}).json()
 
     assert body["problems"] == ["swarm objects not checked: docker unreachable: connection refused"]
+
+
+def test_the_backends_own_network_and_volume_are_refused(client):
+    socket = client.post("/api/v1/jobs", json=job_body(networks=["docker-jobs-socket"]))
+    data = client.post("/api/v1/jobs", json=job_body(mounts=[{"source": "docker-jobs-data", "target": "/x"}]))
+
+    assert (socket.status_code, data.status_code) == (422, 422)
+    assert "backend's own" in socket.text and "backend's own" in data.text

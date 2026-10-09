@@ -11,8 +11,11 @@
 #                  scheduler. ONE replica, on the node labelled
 #                  docker-jobs=true: its SQLite file is on that node's volume.
 #                  Not routed by Traefik: Grafana calls it, with the token.
-#   socket-proxy   the only holder of the docker socket. Reachable from the
-#                  backend only (non-attachable overlay).
+#   socket-proxy   the only holder of the docker socket, on the network
+#                  docker-jobs-socket. Non-attachable stops containers, not
+#                  swarm services: the backend refuses that network (and the
+#                  volume docker-jobs-data) to every job -- PROTECTED_NETWORKS,
+#                  PROTECTED_VOLUMES -- so only the backend reaches the proxy.
 #
 # The jobs are services of the pseudo-stack ${DJ_RUN_STACK}
 # (djobs_<job>_<run>_<try>), created and removed by the backend. They are not
@@ -111,10 +114,14 @@ secrets:
 
 volumes:
   dj-data:
+    # named, not docker-jobs_dj-data: PROTECTED_VOLUMES refuses this name to jobs
+    name: docker-jobs-data
 
 networks:
-  # stack-owned, becomes docker-jobs_internal; not attachable
+  # stack-owned. Named, not docker-jobs_internal: PROTECTED_NETWORKS refuses
+  # this name (and its id) to jobs, which could reach the socket-proxy on it
   internal:
+    name: docker-jobs-socket
     driver: overlay
     attachable: false
   # Alloy (alias alloy, OTLP/HTTP on 4318) and Grafana: ocs-monitoring in prod

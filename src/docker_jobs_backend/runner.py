@@ -287,7 +287,7 @@ class SwarmRunner:
             # without it docker-py sends an empty ReplicatedJob.
             "mode": ServiceMode("replicated-job", replicas=1, concurrency=1),
             "restart_policy": RestartPolicy(condition="none"),
-            "networks": list(spec.networks),
+            "networks": [self._network(client, reference) for reference in spec.networks],
             "constraints": list(spec.constraints),
             "secrets": [self._secret(client, secret) for secret in spec.secrets],
             "configs": [self._config(client, config) for config in spec.configs],
@@ -331,6 +331,18 @@ class SwarmRunner:
             gid=config.get("gid", "10001"),
             mode=config.get("mode", 0o444),
         )
+
+    def _network(self, client: docker.DockerClient, reference: str) -> str:
+        """the reference, once it is known not to be one of the backend's own
+        networks -- the daemon resolves ids and id prefixes too, so the name
+        alone is not enough to tell"""
+        try:
+            network = client.networks.get(reference)
+        except docker.errors.NotFound as exc:
+            raise LaunchError(f"network {reference!r} does not exist") from exc
+        if network.name in self._settings.protected_networks:
+            raise LaunchError(f"network {reference!r} is the backend's own ({network.name})")
+        return reference
 
     @staticmethod
     def _object_id(collection, kind: str, name: str) -> str:

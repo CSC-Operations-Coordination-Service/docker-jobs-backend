@@ -28,6 +28,7 @@ from docker_jobs_backend.deps import (
     get_session,
 )
 from docker_jobs_backend.lifecycle import Lifecycle
+from docker_jobs_backend.policy import refusals
 from docker_jobs_backend.runner import Runner, RunnerUnavailable
 from docker_jobs_backend.schedule import (
     Interval,
@@ -63,12 +64,11 @@ def find_job(session: Session, name: str) -> Job:
     return job
 
 
-def check_mounts(spec: JobSpec, settings: Settings) -> None:
-    """a bind mount is root on the node: refused unless ALLOW_BIND_MOUNTS"""
-    if not settings.allow_bind_mounts and any(mount.type == "bind" for mount in spec.mounts):
-        raise HTTPException(
-            status_code=422, detail="bind mounts are disabled (ALLOW_BIND_MOUNTS): use a volume"
-        )
+def check_policy(spec: JobSpec, settings: Settings) -> None:
+    """422 for what no job may have (policy.py): bind mounts, the backend's own objects"""
+    problems = refusals(spec.networks, [mount.model_dump() for mount in spec.mounts], settings)
+    if problems:
+        raise HTTPException(status_code=422, detail="; ".join(problems))
 
 
 def interval_for(
@@ -94,7 +94,7 @@ def create_job(
     metrics: Metrics = Depends(get_metrics),
     settings: Settings = Depends(get_app_settings),
 ) -> JobOut:
-    check_mounts(body, settings)
+    check_policy(body, settings)
     now = utcnow()
     job = Job(
         name=body.name,
@@ -128,7 +128,7 @@ def update_job(
     user: User = Depends(get_current_user),
     settings: Settings = Depends(get_app_settings),
 ) -> JobOut:
-    check_mounts(body, settings)
+    check_policy(body, settings)
     job = find_job(session, name)
     now = utcnow()
     for key, value in job_columns(body).items():
@@ -196,7 +196,7 @@ def preview(
     settings: Settings = Depends(get_app_settings),
 ) -> PreviewOut:
     job = body.job
-    check_mounts(job, settings)
+    check_policy(job, settings)
     now = utcnow()
     interval = interval_for(job.schedule, body.logical_date, now)
     try:
