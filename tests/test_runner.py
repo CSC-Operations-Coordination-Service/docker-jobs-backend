@@ -343,3 +343,13 @@ def test_missing_objects_lists_what_a_job_would_not_find(swarm):
         "secret 'nope' does not exist",
         "network 'ghost' does not exist",
     ]
+
+
+def test_an_image_reference_docker_py_refuses_is_the_jobs_fault(swarm, docker_client):
+    # docker-py raises this before any HTTP call: not a transport failure
+    docker_client.services.error = docker.errors.InvalidRepository(
+        "Repository name cannot contain a scheme (https://nexus/img:1)"
+    )
+
+    with pytest.raises(LaunchError, match="cannot contain a scheme"):
+        swarm.launch(spec(image="https://nexus/img:1"))

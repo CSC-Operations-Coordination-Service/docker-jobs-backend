@@ -86,8 +86,10 @@ class Scheduler:
                 select(Job).where(Job.enabled.is_(True)).order_by(Job.id)
             ).all()
             for job in jobs:
-                self._schedule_job(session, job, now)
-            session.commit()
+                name = job.name
+                with _isolated(session, f"scheduling job {name}"):
+                    self._schedule_job(session, job, now)
+                    session.commit()
 
     def _schedule_job(self, session: Session, job: Job, now: datetime.datetime) -> None:
         due = due_intervals(
@@ -141,7 +143,9 @@ class Scheduler:
             session.commit()
 
             for attempt in running:
-                self.lifecycle.reconcile(session, attempt, now)
+                attempt_id = attempt.id
+                with _isolated(session, f"reconciling attempt {attempt_id}"):
+                    self.lifecycle.reconcile(session, attempt, now)
 
     # --- 3. launch --------------------------------------------------------------
 
@@ -183,12 +187,29 @@ class Scheduler:
                 if not holds_slot and active.get(job.id, 0) >= job.max_active_runs:
                     continue
 
-                self.lifecycle.launch(session, attempt, now)
+                attempt_id = attempt.id
+                with _isolated(session, f"launching attempt {attempt_id}"):
+                    self.lifecycle.launch(session, attempt, now)
 
                 if attempt.state == AttemptState.RUNNING:
                     running += 1
                 if not holds_slot and run.state in (RunState.RUNNING, RunState.RETRYING):
                     active[job.id] = active.get(job.id, 0) + 1
+
+
+@contextlib.contextmanager
+def _isolated(session: Session, what: str) -> Iterator[None]:
+    """one job's or attempt's failure is logged and rolled back; the others go on
+
+    RunnerUnavailable still ends the tick: Docker is down for everyone.
+    """
+    try:
+        yield
+    except RunnerUnavailable:
+        raise
+    except Exception:  # pylint: disable=broad-except
+        session.rollback()
+        LOGGER.exception("Scheduler: %s failed", what)
 
 
 class SchedulerThread(threading.Thread):

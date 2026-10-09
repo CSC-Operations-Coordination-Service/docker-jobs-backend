@@ -189,6 +189,9 @@ class SwarmRunner:
                 if exc.status_code in _UNAVAILABLE_STATUSES:
                     raise RunnerUnavailable(f"docker unavailable: {exc}") from exc
                 raise LaunchError(exc.explanation or str(exc)) from exc
+            except (docker.errors.InvalidRepository, docker.errors.InvalidArgument) as exc:
+                # refused by docker-py itself, before any request: the spec's fault
+                raise LaunchError(str(exc)) from exc
 
     def status(self, service_id: str) -> TaskStatus:
         with self._docker() as client:

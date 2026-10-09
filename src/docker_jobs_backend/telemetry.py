@@ -31,6 +31,7 @@ would silently vanish -- the gaps alert with it.
 
 import dataclasses
 import datetime
+import logging
 from typing import Dict, Iterable, Optional, Tuple
 
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
@@ -46,6 +47,8 @@ from docker_jobs_backend.schedule import due_intervals
 from docker_jobs_backend.settings import Settings
 
 __all__ = ["DURATION_BUCKETS", "JOB", "Metrics", "count_gaps", "create_meter_provider"]
+
+LOGGER = logging.getLogger(__name__)
 
 JOB = "docker_job"
 GAP_LIMIT = 10_000
@@ -242,8 +245,17 @@ class Metrics:
         ):
             active[(name, state)] = count
 
+        gaps = {}
+        for job in jobs:
+            if not job.enabled:
+                continue
+            try:
+                gaps[job.name] = count_gaps(session, job, now, grace, lookback)
+            except Exception:  # pylint: disable=broad-except
+                LOGGER.exception("Gaps of job %s not computed", job.name)
+
         self._snapshot = Snapshot(
-            gaps={job.name: count_gaps(session, job, now, grace, lookback) for job in jobs if job.enabled},
+            gaps=gaps,
             covered_until={name: end.timestamp() for name, end in covered},
             active=active,
         )

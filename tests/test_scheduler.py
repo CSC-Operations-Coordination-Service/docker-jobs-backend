@@ -229,3 +229,33 @@ def test_one_scheduler_per_database(tmp_path):
 
     with exclusive_lock(path):
         pass
+
+
+def test_one_broken_job_does_not_stop_the_others(scheduler, session, runner, reader):
+    # stored before validation refused such schedules: every interval computation raises
+    make_job(session, name="broken", schedule="0 0 30 2 *")
+    make_job(session, name="good")
+
+    scheduler.tick(T0 + HOUR)
+
+    assert [spec.service_name for spec in runner.launched] == ["djobs_good_1_1"]
+    assert points(reader, "docker_jobs.scheduler.heartbeat") == {attrs(): (T0 + HOUR).timestamp()}
+
+
+def test_an_attempt_that_cannot_launch_does_not_stop_the_others(scheduler, session, session_factory, runner):
+    make_job(session, name="aaa", image="broken")
+    make_job(session, name="bbb")
+    create = runner.launch
+
+    def launch(spec):
+        if spec.image == "broken":
+            raise RuntimeError("unexpected")
+        return create(spec)
+
+    runner.launch = launch
+
+    scheduler.tick(T0 + HOUR)
+
+    assert [spec.service_name for spec in runner.launched] == ["djobs_bbb_2_1"]
+    [run] = runs_of(session_factory, "aaa")
+    assert run.attempts[0].state == "pending"

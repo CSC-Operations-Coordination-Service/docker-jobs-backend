@@ -122,3 +122,8 @@ def test_catching_up_a_year_is_bounded_by_the_limit():
 def test_next_fire_times_are_strictly_after():
     assert next_fire_times(HOURLY, at(10, 20), 3) == [at(11), at(12), at(13)]
     assert next_fire_times(HOURLY, at(11), 1) == [at(12)]
+
+
+def test_a_date_that_never_comes_is_refused():
+    with pytest.raises(ValueError, match="never"):
+        validate_cron("0 0 30 2 *")

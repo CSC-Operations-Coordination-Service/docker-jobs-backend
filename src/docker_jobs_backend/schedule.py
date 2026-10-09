@@ -13,7 +13,7 @@ import dataclasses
 import datetime
 from typing import List, Optional
 
-from croniter import croniter
+from croniter import CroniterBadDateError, croniter
 
 __all__ = [
     "Interval",
@@ -42,6 +42,13 @@ def validate_cron(expression: str) -> str:
 
     if len(normalised.split(" ")) != 5 or not croniter.is_valid(normalised):
         raise ValueError(f"not a 5-field cron expression: {expression!r}")
+
+    # valid syntax, but a date that never comes (0 0 30 2 *) would make every
+    # interval computation raise -- in the scheduler, for every tick
+    try:
+        _next(normalised, datetime.datetime(2026, 1, 1, tzinfo=UTC))
+    except CroniterBadDateError as exc:
+        raise ValueError(f"this schedule never fires: {expression!r}") from exc
 
     return normalised
 
