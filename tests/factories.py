@@ -86,3 +86,25 @@ def make_run(
             )
         )
     return run
+
+
+def attrs(**attributes) -> frozenset:
+    """a data point's attributes, as points() keys them"""
+    return frozenset(attributes.items())
+
+
+def points(reader, name) -> dict:
+    """{attributes: value} of one metric at a fresh collection; a histogram gives its count"""
+    found = {}
+    data = reader.get_metrics_data()
+    if data is None:
+        return found
+    for resource_metrics in data.resource_metrics:
+        for scope_metrics in resource_metrics.scope_metrics:
+            for metric in scope_metrics.metrics:
+                if metric.name != name:
+                    continue
+                for point in metric.data.data_points:
+                    value = point.count if hasattr(point, "bucket_counts") else point.value
+                    found[frozenset(point.attributes.items())] = value
+    return found

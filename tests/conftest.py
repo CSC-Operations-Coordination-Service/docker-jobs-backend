@@ -2,10 +2,13 @@
 
 import pytest
 from fastapi.testclient import TestClient
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 
 from docker_jobs_backend.db import create_session_factory
 from docker_jobs_backend.main import create_app
 from docker_jobs_backend.settings import Settings
+from docker_jobs_backend.telemetry import Metrics
 
 
 @pytest.fixture(name="settings")
@@ -39,3 +42,13 @@ def make_app_fixture(settings):
 def client_fixture(make_app):
     with TestClient(make_app()) as client:
         yield client
+
+
+@pytest.fixture(name="reader")
+def reader_fixture():
+    return InMemoryMetricReader()
+
+
+@pytest.fixture(name="metrics")
+def metrics_fixture(reader, settings):
+    return Metrics(MeterProvider(metric_readers=[reader]), settings)
