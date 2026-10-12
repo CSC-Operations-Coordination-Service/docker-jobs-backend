@@ -18,7 +18,8 @@ It replaces the host crontabs (and the Ofelia plan) of csc-ocs-ansible's ROADMAP
   Off: only the latest interval runs, the others are counted as skipped.
 - **Attempts.** A run's try is a `replicated-job` service `djobs_<job>_<run>_<try>`, never
   restarted by Swarm. On failure (non-zero exit, rejected task, lost service, timeout) the run
-  retries after `retry_delay_seconds`, up to `retries` times, then fails.
+  retries after `retry_delay_seconds`, up to `retries` times, then fails. A try is judged by its
+  exit code alone: the image's `HEALTHCHECK`, meant for a long-running service, is turned off.
 - **Limits.** `max_active_runs` per job (1: no overlap; a retrying run keeps its slot) and
   `MAX_RUNNING` across all jobs. `timeout_seconds` per attempt; `START_TIMEOUT_SECONDS` for a
   task that never starts (no node matches, image missing).
