@@ -29,6 +29,7 @@ import docker
 import requests
 from docker.types import (
     ConfigReference,
+    Healthcheck,
     Mount,
     Resources,
     RestartPolicy,
@@ -287,6 +288,10 @@ class SwarmRunner:
             # without it docker-py sends an empty ReplicatedJob.
             "mode": ServiceMode("replicated-job", replicas=1, concurrency=1),
             "restart_policy": RestartPolicy(condition="none"),
+            # a job is judged by its exit code: the image's HEALTHCHECK is for
+            # a long-running service, and a one-shot command that does not
+            # serve it would be killed by Swarm as unhealthy
+            "healthcheck": Healthcheck(test=["NONE"]),
             "networks": [self._network(client, reference) for reference in spec.networks],
             "constraints": list(spec.constraints),
             "secrets": [self._secret(client, secret) for secret in spec.secrets],

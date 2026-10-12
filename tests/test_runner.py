@@ -147,6 +147,15 @@ def test_an_attempt_is_a_one_shot_replicated_job(swarm, docker_client):
     assert created["restart_policy"]["Condition"] == "none"
 
 
+def test_the_image_healthcheck_is_off_a_job_is_judged_by_its_exit_code(swarm, docker_client):
+    # the maas images probe localhost:8080, which a one-shot command never
+    # serves: inherited, the probe has swarm kill the task as unhealthy
+    swarm.launch(spec())
+
+    [created] = docker_client.services.created
+    assert created["healthcheck"]["Test"] == ["NONE"]
+
+
 def test_every_job_logs_through_the_house_loki_block(swarm, docker_client):
     swarm.launch(spec())
 
