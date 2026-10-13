@@ -27,7 +27,7 @@ State lives in SQLite on the service's volume. The service reaches Docker throug
 
 ## Context
 
-Today, scheduled container work runs from host crontabs on `oep-tdh-maas-01` and `-04`, using `docker run --rm` plus a shell script that does the date arithmetic. Those crontabs are not versioned, not visible to anyone, and not monitored. The roadmap planned Ofelia for this, but Ofelia leaves open several needs: no overlap between runs, logs in Loki, failures that are visible, and the 01:00 burst of 18 recollects. This backend replaces Ofelia and covers those needs.
+Today, scheduled container work runs from host crontabs on two of the swarm nodes, using `docker run --rm` plus a shell script that does the date arithmetic. Those crontabs are not versioned, not visible to anyone, and not monitored. The roadmap planned Ofelia for this, but Ofelia leaves open several needs: no overlap between runs, logs in Loki, failures that are visible, and the 01:00 burst of 18 recollects. This backend replaces Ofelia and covers those needs.
 
 The request (2026-10-09), condensed:
 - Orchestrate containers on a schedule, like a k8s CronJob or Job but for Docker Swarm, and like Apache Airflow.
