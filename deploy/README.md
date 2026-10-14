@@ -14,6 +14,12 @@ backend refuses both to every job (`PROTECTED_NETWORKS`, `PROTECTED_VOLUMES`), b
 service can join a non-attachable overlay, and from the socket-proxy a job could create any
 service. Rename them here and in those two settings together.
 
+Every other network (`host` included), named volume, secret and config is refused too, unless
+it is in an allow list: `DJ_ALLOWED_NETWORKS`, `DJ_ALLOWED_VOLUMES`, `DJ_ALLOWED_SECRETS`,
+`DJ_ALLOWED_CONFIGS` in `.env`, empty by default. Whoever can save a job could otherwise mount
+any secret of the swarm and print it to the job's log, or join another stack's network or
+volume. List only what the jobs need.
+
 The jobs themselves are services `djobs_<job>_<run>_<try>` of the pseudo-stack `djobs`
 (`DJ_RUN_STACK`): `docker stack services djobs` lists what runs now. Never
 `docker stack rm djobs`.

@@ -254,6 +254,33 @@ def test_the_backends_own_network_and_volume_are_refused(client):
     assert "backend's own" in socket.text and "backend's own" in data.text
 
 
+@pytest.mark.parametrize(
+    "fields, refused",
+    [
+        ({"networks": ["host"]}, "network 'host' is not allowed"),
+        ({"networks": ["other-net"]}, "network 'other-net' is not allowed"),
+        ({"mounts": [{"source": "other-data", "target": "/x"}]}, "volume 'other-data' is not allowed"),
+        ({"secrets": [{"source": "other_secret_v1"}]}, "secret 'other_secret_v1' is not allowed"),
+        ({"configs": [{"source": "other_conf", "target": "/x"}]}, "config 'other_conf' is not allowed"),
+    ],
+)
+def test_what_the_allow_lists_leave_out_is_refused_on_save_update_and_preview(client, fields, refused):
+    created = client.post("/api/v1/jobs", json=job_body(**fields))
+    preview = client.post("/api/v1/preview", json={"job": job_body(**fields)})
+    create(client)
+    updated = client.put("/api/v1/jobs/collect", json=spec_body(**fields))
+
+    for response in (created, preview, updated):
+        assert response.status_code == 422
+        assert refused in response.text
+
+
+def test_a_listed_object_is_accepted_in_any_of_its_versions(client):
+    job = create(client, secrets=[{"source": "cdse_v4"}], networks=["ocs_rabbitmq"])
+
+    assert job["secrets"][0]["source"] == "cdse_v4"
+
+
 def test_an_end_date_before_the_stored_start_is_a_422_and_nothing_breaks(client):
     create(client)
 

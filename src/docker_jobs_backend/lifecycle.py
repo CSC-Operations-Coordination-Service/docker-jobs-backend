@@ -177,7 +177,7 @@ class Lifecycle:
             session.commit()
             return
 
-        problems = refusals(job.networks, job.mounts, self.settings)
+        problems = refusals(job.networks, job.mounts, self.settings, secrets=job.secrets, configs=job.configs)
         if problems:
             self._finish(attempt, AttemptState.FAILED, now, error="refused: " + "; ".join(problems))
             session.commit()

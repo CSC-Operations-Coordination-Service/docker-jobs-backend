@@ -65,8 +65,15 @@ def find_job(session: Session, name: str) -> Job:
 
 
 def check_policy(spec: JobSpec, settings: Settings) -> None:
-    """422 for what no job may have (policy.py): bind mounts, the backend's own objects"""
-    problems = refusals(spec.networks, [mount.model_dump() for mount in spec.mounts], settings)
+    """422 for what no job may have (policy.py): bind mounts, the backend's own
+    objects, what the allow lists leave out"""
+    problems = refusals(
+        spec.networks,
+        [mount.model_dump() for mount in spec.mounts],
+        settings,
+        secrets=[secret.model_dump() for secret in spec.secrets],
+        configs=[config.model_dump() for config in spec.configs],
+    )
     if problems:
         raise HTTPException(status_code=422, detail="; ".join(problems))
 

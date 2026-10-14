@@ -63,6 +63,11 @@ spaces stays one argument; an unknown variable is an error, not an empty string)
 `/run/secrets/<target or source>` as uid/gid 10001, mode 0400; configs at `target`, mode 0444.
 Swarm objects are referenced by their exact (versioned) names; networks created by a stack by
 their full name (`stack_network`). Bind mounts are refused unless `ALLOW_BIND_MOUNTS=true`.
+Every network, named volume, secret and config must be in its allow list (`ALLOWED_NETWORKS`,
+`ALLOWED_VOLUMES`, `ALLOWED_SECRETS`, `ALLOWED_CONFIGS`), all empty by default: a job outside
+them gets a 422 when saved or previewed, and its attempt fails at launch if a list was tightened
+since. An entry matches its name and that name's versions (`<name>_v<n>`); `app_*` matches by
+prefix, `*` everything. The backend's own network and volume stay refused even when listed.
 `POST /api/v1/preview` renders a definition and lists the secrets, configs and networks it
 would not find. Use immutable image tags: Swarm resolves them when each attempt starts.
 
@@ -124,6 +129,7 @@ intervals missing for 15 min; no scheduler tick for 5 min (or no heartbeat at al
 | `RUN_STACK` | `djobs` | one per backend per swarm |
 | `ALLOW_BIND_MOUNTS` | `false` | |
 | `PROTECTED_NETWORKS`, `PROTECTED_VOLUMES` | `docker-jobs-socket`, `docker-jobs-data` | the backend's own: refused to jobs |
+| `ALLOWED_NETWORKS`, `ALLOWED_VOLUMES`, `ALLOWED_SECRETS`, `ALLOWED_CONFIGS` | empty: none | what a job may name; comma-separated, `<name>` (and `<name>_v<n>`) or `prefix*` |
 | `LOKI_URL`, `LOKI_RETRIES`, `LOKI_BATCH_SIZE`, `LOKI_MODE` | the house block | |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_METRIC_EXPORT_INTERVAL`, `OTEL_SDK_DISABLED` | OTel's | |
 | `OTEL_SERVICE_NAME` | `docker-jobs-backend` | |
