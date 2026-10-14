@@ -108,7 +108,7 @@ class FakeClient:
         self.services = FakeServices()
         self.secrets = FakeObjects(**{"cdse": "sec-1", "cdse-v2": "sec-2"})
         self.configs = FakeObjects(**{"odata-conf": "cfg-1"})
-        self.networks = FakeObjects(**{"ocs_rabbitmq": "net-1", "docker-jobs-socket": "sock-9"})
+        self.networks = FakeObjects(**{"ocs_rabbitmq": "net-1", "docker-jobs-socket": "sock-9", "host": "host-0"})
         self.api = FakeAPI()
 
 
@@ -119,7 +119,7 @@ def docker_client_fixture():
 
 @pytest.fixture(name="swarm")
 def swarm_fixture(docker_client):
-    return SwarmRunner(Settings(), client_factory=lambda: docker_client)
+    return SwarmRunner(Settings(allowed_networks=["ocs_rabbitmq"]), client_factory=lambda: docker_client)
 
 
 def spec(**overrides):
@@ -378,6 +378,12 @@ def test_an_image_reference_docker_py_refuses_is_the_jobs_fault(swarm, docker_cl
 def test_the_backends_own_network_is_refused_however_it_is_named(swarm):
     for reference in ("docker-jobs-socket", "sock-9", "so"):
         with pytest.raises(LaunchError, match="the backend's own"):
+            swarm.launch(spec(networks=[reference]))
+
+
+def test_a_network_outside_the_allow_list_is_refused_however_it_is_named(swarm):
+    for reference in ("host", "host-0", "ho"):
+        with pytest.raises(LaunchError, match="'host' is not allowed"):
             swarm.launch(spec(networks=[reference]))
 
 

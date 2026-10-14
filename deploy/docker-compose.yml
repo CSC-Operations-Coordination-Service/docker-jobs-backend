@@ -39,6 +39,12 @@ services:
       DOCKER_HOST: tcp://socket-proxy:2375
       RUN_STACK: ${DJ_RUN_STACK}
       MAX_RUNNING: ${DJ_MAX_RUNNING}
+      # What a job may name, beyond the backend's own objects, which stay
+      # refused. Empty refuses every network, named volume, secret and config.
+      ALLOWED_NETWORKS: ${DJ_ALLOWED_NETWORKS}
+      ALLOWED_VOLUMES: ${DJ_ALLOWED_VOLUMES}
+      ALLOWED_SECRETS: ${DJ_ALLOWED_SECRETS}
+      ALLOWED_CONFIGS: ${DJ_ALLOWED_CONFIGS}
       API_TOKEN_FILE: /run/secrets/dj_api_token
       USER_HEADER: X-Grafana-User
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}

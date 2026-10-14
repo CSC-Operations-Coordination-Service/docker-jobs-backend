@@ -71,6 +71,16 @@ class Settings(BaseSettings):
     protected_volumes: Annotated[List[str], NoDecode] = Field(
         default_factory=lambda: ["docker-jobs-data"]
     )
+    # What a job may name at all, beyond the protected objects above: every
+    # other swarm network (host included), named volume, secret and config is
+    # refused. Empty refuses every one, so a deployment lists what its jobs
+    # need. An entry matches that name and its stack versions, <name>_v<n>;
+    # one ending in * matches by prefix, and * alone matches everything.
+    # Comma-separated.
+    allowed_networks: Annotated[List[str], NoDecode] = Field(default_factory=list)
+    allowed_volumes: Annotated[List[str], NoDecode] = Field(default_factory=list)
+    allowed_secrets: Annotated[List[str], NoDecode] = Field(default_factory=list)
+    allowed_configs: Annotated[List[str], NoDecode] = Field(default_factory=list)
 
     # --- Logs: the loki driver of every job container ----------------------
     loki_url: str = "http://127.0.0.1:3100/loki/api/v1/push"
@@ -93,7 +103,15 @@ class Settings(BaseSettings):
     # Shared secret of the Grafana app's proxy route; empty disables the check.
     api_token: str = ""
 
-    @field_validator("protected_networks", "protected_volumes", mode="before")
+    @field_validator(
+        "protected_networks",
+        "protected_volumes",
+        "allowed_networks",
+        "allowed_volumes",
+        "allowed_secrets",
+        "allowed_configs",
+        mode="before",
+    )
     @classmethod
     def _split(cls, value):
         """accept a comma-separated string, which is what an env var holds"""

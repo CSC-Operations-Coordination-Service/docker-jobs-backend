@@ -16,11 +16,14 @@ from docker_jobs_backend.telemetry import Metrics
 
 @pytest.fixture(name="settings")
 def settings_fixture(tmp_path):
-    """a temporary SQLite file and lock, the scheduler thread off"""
+    """a temporary SQLite file and lock, the scheduler thread off, and allow
+    lists naming what the tests' jobs use"""
     return Settings(
         database_url=f"sqlite:///{tmp_path / 'jobs.db'}",
         lock_file=str(tmp_path / "scheduler.lock"),
         scheduler_enabled=False,
+        allowed_networks=["ocs_rabbitmq"],
+        allowed_secrets=["cdse"],
     )
 
 

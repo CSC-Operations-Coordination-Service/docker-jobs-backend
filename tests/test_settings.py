@@ -51,3 +51,13 @@ def test_the_protected_objects_are_comma_separated(monkeypatch):
 
     assert Settings().protected_networks == ["docker-jobs-socket", "other-net"]
     assert Settings().protected_volumes == ["docker-jobs-data"]
+
+
+def test_the_allow_lists_are_comma_separated_and_empty_by_default(monkeypatch):
+    assert (Settings().allowed_networks, Settings().allowed_secrets) == ([], [])
+
+    monkeypatch.setenv("ALLOWED_SECRETS", "app_secret, app_*")
+    monkeypatch.setenv("ALLOWED_CONFIGS", "")
+
+    assert Settings().allowed_secrets == ["app_secret", "app_*"]
+    assert Settings().allowed_configs == []

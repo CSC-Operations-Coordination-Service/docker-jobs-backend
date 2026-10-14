@@ -305,3 +305,13 @@ def test_a_bind_mount_saved_before_they_were_disabled_fails_at_launch(session, l
     assert run.attempts[0].state == "failed"
     assert "bind mounts are disabled" in run.attempts[0].error
     assert runner.launched == []
+
+
+def test_a_secret_dropped_from_its_allow_list_fails_at_launch(session, lifecycle, runner):
+    run = new_run(session, lifecycle, secrets=[{**SECRET, "source": "dropped"}])
+
+    lifecycle.launch(session, run.attempts[0], T0 + HOUR)
+
+    assert run.attempts[0].state == "failed"
+    assert "secret 'dropped' is not allowed" in run.attempts[0].error
+    assert runner.launched == []

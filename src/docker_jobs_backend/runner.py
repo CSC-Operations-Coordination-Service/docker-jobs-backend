@@ -37,6 +37,7 @@ from docker.types import (
     ServiceMode,
 )
 
+from docker_jobs_backend.policy import network_refusal
 from docker_jobs_backend.settings import Settings
 
 __all__ = [
@@ -338,15 +339,16 @@ class SwarmRunner:
         )
 
     def _network(self, client: docker.DockerClient, reference: str) -> str:
-        """the reference, once it is known not to be one of the backend's own
-        networks -- the daemon resolves ids and id prefixes too, so the name
-        alone is not enough to tell"""
+        """the reference, once its network is known to be allowed and not one of
+        the backend's own -- the daemon resolves ids and id prefixes too, so
+        the name the job gave is not enough to tell"""
         try:
             network = client.networks.get(reference)
         except docker.errors.NotFound as exc:
             raise LaunchError(f"network {reference!r} does not exist") from exc
-        if network.name in self._settings.protected_networks:
-            raise LaunchError(f"network {reference!r} is the backend's own ({network.name})")
+        problem = network_refusal(network.name, self._settings)
+        if problem:
+            raise LaunchError(f"{problem} (named {reference!r})")
         return reference
 
     @staticmethod
