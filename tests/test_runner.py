@@ -138,12 +138,13 @@ def spec(**overrides):
 SECRET = {"source": "cdse", "target": "", "uid": "10001", "gid": "10001", "mode": 0o400}
 
 
-def test_an_attempt_is_a_one_shot_replicated_job(swarm, docker_client):
+def test_an_attempt_is_one_replica_swarm_never_restarts(swarm, docker_client):
     assert swarm.launch(spec()) == "svc-1"
 
     [created] = docker_client.services.created
     assert created["name"] == "djobs_collect_42_1"
-    assert created["mode"] == {"ReplicatedJob": {"MaxConcurrent": 1, "TotalCompletions": 1}}
+    # not ReplicatedJob: swarm runs extra tasks of one on several managers
+    assert created["mode"] == {"replicated": {"Replicas": 1}}
     assert created["restart_policy"]["Condition"] == "none"
 
 
