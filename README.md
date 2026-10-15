@@ -16,8 +16,9 @@ It replaces the host crontabs (and the Ofelia plan) of csc-ocs-ansible's ROADMAP
 - **Catch-up** (default on): after downtime, or with a `start_date` in the past, every missed
   interval gets its run, oldest first, with at most `CATCHUP_BATCH` runs of a job waiting at once.
   Off: only the latest interval runs, the others are counted as skipped.
-- **Attempts.** A run's try is a `replicated-job` service `djobs_<job>_<run>_<try>`, never
-  restarted by Swarm. On failure (non-zero exit, rejected task, lost service, timeout) the run
+- **Attempts.** A run's try is a one-replica service `djobs_<job>_<run>_<try>`, never
+  restarted by Swarm (restart condition `none`). Not swarm's `replicated-job` mode, which runs
+  extra tasks on a cluster of several managers ([moby#42741](https://github.com/moby/moby/issues/42741)). On failure (non-zero exit, rejected task, lost service, timeout) the run
   retries after `retry_delay_seconds`, up to `retries` times, then fails. A try is judged by its
   exit code alone: the image's `HEALTHCHECK`, meant for a long-running service, is turned off.
 - **Limits.** `max_active_runs` per job (1: no overlap; a retrying run keeps its slot) and

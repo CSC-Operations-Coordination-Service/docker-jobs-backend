@@ -1,11 +1,16 @@
-"""Docker Swarm: one replicated-job service per attempt
+"""Docker Swarm: one single-replica service per attempt
 
-An attempt is a service in replicated-job mode: one task, run to completion.
-Retries are the scheduler's -- each one a new service -- so every try keeps
-its own exit code, node and logs. Swarm runs a replicated job again after a
-non-zero exit, even with restart condition none; the attempt is judged by its
-first run that exited (SwarmRunner._deciding_task), and its service removed
-at once, which ends those reruns. A service is removed once its outcome is
+An attempt is a replicated service of one replica that swarm never restarts
+(restart condition none): its one task runs to an exit, and swarm then shuts
+it down without a replacement. Retries are the scheduler's -- each one a new
+service -- so every try keeps its own exit code, node and logs.
+
+Not swarm's replicated-job mode: on a cluster of several managers, swarm
+starts extra tasks of a one-completion job, in parallel or one after the
+other (moby/moby#42741; seen in production on 2026-10-15, up to 44 runs of
+one attempt). Should a service still get more than one task, the first that
+exited decides (SwarmRunner._deciding_task), and its service is removed at
+once. A service is removed once its outcome is
 recorded; its logs are in Loki by then.
 
 Every service is labelled for three readers:
@@ -216,11 +221,9 @@ class SwarmRunner:
     def _deciding_task(tasks: List[dict]) -> dict:
         """the task an attempt is judged by
 
-        The first one that ran its command to an exit code decides: swarm
-        runs a replicated job again after a non-zero exit, restart condition
-        none notwithstanding, until one completes, and the attempt is that
-        first run, not swarm's reruns (seen in production on 2026-10-15: a
-        failing job ran 44 times in one attempt).
+        The first one that ran its command to an exit code decides: should
+        swarm run the command again (the replicated-job bug of the module
+        docstring), the attempt is that first run, not swarm's reruns.
         Until a task has exited, the latest one: swarm also replaces a task
         that never ran its command (rejected, its node gone), and that one
         is the attempt still.
@@ -314,9 +317,10 @@ class SwarmRunner:
             "env": [f"{name}={value}" for name, value in spec.env.items()],
             "labels": labels,
             "container_labels": labels,
-            # one task, never restarted by Swarm. replicas=1 is required:
-            # without it docker-py sends an empty ReplicatedJob.
-            "mode": ServiceMode("replicated-job", replicas=1, concurrency=1),
+            # one task, never restarted or replaced by swarm: the one-shot
+            # service of swarm before jobs. Not replicated-job, which runs
+            # extra tasks on a multi-manager cluster (module docstring).
+            "mode": ServiceMode("replicated", replicas=1),
             "restart_policy": RestartPolicy(condition="none"),
             # a job is judged by its exit code: the image's HEALTHCHECK is for
             # a long-running service, and a one-shot command that does not
