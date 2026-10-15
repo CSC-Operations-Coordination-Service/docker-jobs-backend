@@ -319,13 +319,27 @@ def task(state, index=1, exit_code=None, err=None, node="node-1"):
             [task("pending", node="", err="no suitable node (scheduling constraints not satisfied)")],
             TaskStatus(PENDING, error="no suitable node (scheduling constraints not satisfied)"),
         ),
+        # swarm reran the job after the attempt's own run failed: that run decides
         (
             [task("failed", index=1, exit_code=1, err="x"), task("complete", index=5, exit_code=0)],
+            TaskStatus(FAILED, exit_code=1, error="x", node_id="node-1"),
+        ),
+        (
+            [task("failed", index=1, exit_code=1, err="x"), task("running", index=5)],
+            TaskStatus(FAILED, exit_code=1, error="x", node_id="node-1"),
+        ),
+        # a task that never ran (rejected, its node gone) was replaced: follow the new one
+        (
+            [task("rejected", index=1, err="node down"), task("running", index=5)],
+            TaskStatus(RUNNING, node_id="node-1"),
+        ),
+        (
+            [task("rejected", index=1, err="node down"), task("complete", index=5, exit_code=0)],
             TaskStatus(COMPLETE, exit_code=0, node_id="node-1"),
         ),
     ],
 )
-def test_the_latest_task_decides(swarm, docker_client, tasks, expected):
+def test_the_first_exited_task_decides_else_the_latest(swarm, docker_client, tasks, expected):
     docker_client.api.tasks_by_service["svc-1"] = tasks
 
     assert swarm.status("svc-1") == expected
