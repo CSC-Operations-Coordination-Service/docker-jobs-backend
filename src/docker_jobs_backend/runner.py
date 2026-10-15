@@ -1,9 +1,12 @@
 """Docker Swarm: one replicated-job service per attempt
 
-An attempt is a service in replicated-job mode: one task, run to completion,
-never restarted by Swarm. Retries are the scheduler's -- each one a new
-service -- so every try keeps its own exit code, node and logs. A service is
-removed once its outcome is recorded; its logs are in Loki by then.
+An attempt is a service in replicated-job mode: one task, run to completion.
+Retries are the scheduler's -- each one a new service -- so every try keeps
+its own exit code, node and logs. Swarm runs a replicated job again after a
+non-zero exit, even with restart condition none; the attempt is judged by its
+first run that exited (SwarmRunner._deciding_task), and its service removed
+at once, which ends those reruns. A service is removed once its outcome is
+recorded; its logs are in Loki by then.
 
 Every service is labelled for three readers:
 
@@ -207,8 +210,34 @@ class SwarmRunner:
             except docker.errors.APIError as exc:
                 raise RunnerUnavailable(f"docker unavailable: {exc}") from exc
 
-        latest = max(tasks, key=lambda item: item.get("Version", {}).get("Index", 0))
-        return self._task_status(latest)
+        return self._task_status(self._deciding_task(tasks))
+
+    @staticmethod
+    def _deciding_task(tasks: List[dict]) -> dict:
+        """the task an attempt is judged by
+
+        The first one that ran its command to an exit code decides: swarm
+        runs a replicated job again after a non-zero exit, restart condition
+        none notwithstanding, until one completes, and the attempt is that
+        first run, not swarm's reruns (seen in production on 2026-10-15: a
+        failing job ran 44 times in one attempt).
+        Until a task has exited, the latest one: swarm also replaces a task
+        that never ran its command (rejected, its node gone), and that one
+        is the attempt still.
+        """
+
+        def index(task: dict) -> int:
+            return task.get("Version", {}).get("Index", 0)
+
+        exited = [
+            task
+            for task in tasks
+            if task.get("Status", {}).get("State") in ("complete", "failed")
+            and task.get("Status", {}).get("ContainerStatus", {}).get("ExitCode") is not None
+        ]
+        if exited:
+            return min(exited, key=index)
+        return max(tasks, key=index)
 
     def remove(self, service_id: str) -> None:
         with self._docker() as client:
