@@ -46,6 +46,7 @@ def make_job(session, **overrides) -> Job:
         secrets=[],
         configs=[],
         mounts=[],
+        user="",
         cpu_limit=None,
         memory_limit_mb=None,
         schedule_cursor=None,

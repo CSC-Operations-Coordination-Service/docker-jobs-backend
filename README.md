@@ -62,6 +62,9 @@ spaces stays one argument; an unknown variable is an error, not an empty string)
 
 `entrypoint` replaces the image's ENTRYPOINT, `command` its CMD. Secrets mount at
 `/run/secrets/<target or source>` as uid/gid 10001, mode 0400; configs at `target`, mode 0444.
+`user` runs the container as that user, as `docker run --user` takes it (`100`, `100:101`,
+`backup`); empty keeps the image's `USER`. A secret keeps its own `uid`: give it the job's, or
+the job cannot read it at mode 0400.
 Swarm objects are referenced by their exact (versioned) names; networks created by a stack by
 their full name (`stack_network`). Bind mounts are refused unless `ALLOW_BIND_MOUNTS=true`.
 Every network, named volume, secret and config must be in its allow list (`ALLOWED_NETWORKS`,
@@ -160,5 +163,6 @@ Against the local Docker (a single-node swarm, the loki plugin, a Loki on 3100):
 - One process, one replica, one node's disk: the database is SQLite on a local volume, and the
   scheduler refuses to start twice on it (`LOCK_FILE`). That node is a single point of failure,
   like the crontabs it replaces -- but the jobs themselves run anywhere in the swarm.
-- The schema is created, not migrated: a column change needs a migration written by hand.
+- The schema is created, not migrated: a new column is added at start-up (`_ADDED_COLUMNS` in
+  db.py); any other change needs a migration written by hand.
 - UTC only.

@@ -200,6 +200,7 @@ class Lifecycle:
             secrets=job.secrets,
             configs=job.configs,
             mounts=job.mounts,
+            user=job.user,
             cpu_limit=job.cpu_limit,
             memory_limit_mb=job.memory_limit_mb,
         )

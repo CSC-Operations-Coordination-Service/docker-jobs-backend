@@ -53,6 +53,7 @@ def test_launch_renders_the_runs_interval_into_a_service(session, lifecycle, run
     run = new_run(
         session, lifecycle,
         env={"IFACE": "{{ params.interface }}"}, params={"interface": "LTA_Acri"}, secrets=[SECRET],
+        user="100:101",
     )
     attempt = run.attempts[0]
 
@@ -63,6 +64,7 @@ def test_launch_renders_the_runs_interval_into_a_service(session, lifecycle, run
     assert spec.command == ["--start", "2026-10-09T00:00:00.000Z"]
     assert spec.env == {"IFACE": "LTA_Acri"}
     assert spec.secrets == [SECRET]
+    assert spec.user == "100:101"
     assert spec.labels == {
         "docker-jobs.job": "collect",
         "docker-jobs.run": str(run.id),

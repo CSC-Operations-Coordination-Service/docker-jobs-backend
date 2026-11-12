@@ -33,6 +33,7 @@ from sqlalchemy import (
     UniqueConstraint,
     create_engine,
     event,
+    inspect,
     text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
@@ -152,6 +153,7 @@ class Job(Base):
     secrets: Mapped[list] = mapped_column(JSON, default=list)
     configs: Mapped[list] = mapped_column(JSON, default=list)
     mounts: Mapped[list] = mapped_column(JSON, default=list)
+    user: Mapped[str] = mapped_column(String(64), default="", server_default="")
     cpu_limit: Mapped[Optional[float]] = mapped_column(nullable=True)
     memory_limit_mb: Mapped[Optional[int]] = mapped_column(nullable=True)
     # end of the last interval the scheduler created a run for, or skipped
@@ -264,8 +266,21 @@ def _sqlite_begin(connection) -> None:
     connection.exec_driver_sql("BEGIN IMMEDIATE")
 
 
+# columns added after a database could exist: create_all makes a missing table,
+# never a missing column, so each is added here, once, with its DDL
+_ADDED_COLUMNS = (("jobs", "user", "VARCHAR(64) NOT NULL DEFAULT ''"),)
+
+
+def _add_missing_columns(engine) -> None:
+    with engine.begin() as connection:
+        for table, column, ddl in _ADDED_COLUMNS:
+            present = {found["name"] for found in inspect(connection).get_columns(table)}
+            if column not in present:
+                connection.exec_driver_sql(f'ALTER TABLE {table} ADD COLUMN "{column}" {ddl}')
+
+
 def create_session_factory(database_url: str) -> sessionmaker:
-    """the engine, the schema if it is missing, and sessions over them"""
+    """the engine, the schema if it is missing or lacks a column, and sessions over them"""
     sqlite = database_url.startswith("sqlite")
     engine = create_engine(
         database_url, connect_args={"check_same_thread": False} if sqlite else {}
@@ -276,5 +291,6 @@ def create_session_factory(database_url: str) -> sessionmaker:
         event.listen(engine, "begin", _sqlite_begin)
 
     Base.metadata.create_all(engine)
+    _add_missing_columns(engine)
 
     return sessionmaker(engine, expire_on_commit=False)

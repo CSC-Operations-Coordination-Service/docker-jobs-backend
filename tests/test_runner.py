@@ -232,6 +232,15 @@ def test_networks_constraints_mounts_and_limits_are_passed_on(swarm, docker_clie
     assert created["resources"] == {"Limits": {"NanoCPUs": 500_000_000, "MemoryBytes": 256 * 1024 * 1024}}
 
 
+def test_the_user_is_passed_on_and_empty_leaves_the_images(swarm, docker_client):
+    swarm.launch(spec(user="100"))
+    swarm.launch(spec(service_name="djobs_collect_42_2"))
+
+    first, second = docker_client.services.created
+    assert first["user"] == "100"
+    assert second["user"] is None
+
+
 def test_a_name_conflict_adopts_our_own_service(swarm, docker_client):
     docker_client.services.existing["djobs_collect_42_1"] = ("svc-old", {ATTEMPT_LABEL: "token-7"})
     docker_client.services.error = api_error(409, "name conflicts with an existing object")
