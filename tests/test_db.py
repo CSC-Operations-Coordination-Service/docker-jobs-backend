@@ -8,7 +8,7 @@ from factories import HOUR, T0, make_job, make_run
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, StatementError
 
-from docker_jobs_backend.db import Attempt, Job, Run, RunType
+from docker_jobs_backend.db import Attempt, Job, Run, RunType, create_session_factory
 
 
 def test_datetimes_come_back_aware_utc(session_factory):
@@ -114,3 +114,18 @@ def test_an_interval_of_another_length_may_share_its_start(session):
     session.add_all([hourly, two_hours])
 
     session.commit()
+
+
+def test_a_database_from_before_the_user_column_gets_it(tmp_path):
+    url = f"sqlite:///{tmp_path / 'old.db'}"
+    with create_session_factory(url)() as session:
+        make_job(session, user="100")
+        session.connection().exec_driver_sql("ALTER TABLE jobs DROP COLUMN user")
+        session.commit()
+
+    with create_session_factory(url)() as session:
+        assert session.scalar(select(Job.user)) == ""
+        make_job(session, name="other", user="100")
+
+    with create_session_factory(url)() as session:
+        assert session.scalar(select(Job.user).where(Job.name == "other")) == "100"

@@ -99,6 +99,24 @@ def test_environment_names_are_checked(client):
     assert client.post("/api/v1/jobs", json=job_body(env={"BAD-NAME": "x"})).status_code == 422
 
 
+def test_the_user_defaults_to_the_images_and_is_kept(client):
+    assert create(client)["user"] == ""
+
+    response = client.put("/api/v1/jobs/collect", json=spec_body(user="100:101"), headers=USER)
+    assert response.status_code == 200, response.text
+    assert client.get("/api/v1/jobs/collect").json()["user"] == "100:101"
+
+
+@pytest.mark.parametrize("user", ["100", "100:101", "backup", "backup:backup", "nobody"])
+def test_a_name_or_uid_and_optional_group_is_a_user(client, user):
+    assert create(client, user=user)["user"] == user
+
+
+@pytest.mark.parametrize("user", [":100", "100:", "1:2:3", "a b", "-u", "x" * 33, "100;id"])
+def test_anything_else_is_not_a_user(client, user):
+    assert client.post("/api/v1/jobs", json=job_body(user=user)).status_code == 422
+
+
 def test_end_date_comes_after_start_date(client):
     body = job_body(start_date="2026-10-09T00:00:00Z", end_date="2026-10-08T00:00:00Z")
 

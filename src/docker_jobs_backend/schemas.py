@@ -39,6 +39,9 @@ __all__ = [
 # lowercase, digits, inner dashes, 32 at most: it goes in service names
 NAME_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$"
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# what docker run --user takes: a name or uid, then optionally a group or gid
+_USER_PART = r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}"
+_USER = re.compile(rf"^{_USER_PART}(:{_USER_PART})?$")
 
 
 def aware_utc(value: Optional[datetime.datetime]) -> Optional[datetime.datetime]:
@@ -110,6 +113,8 @@ class JobFields(BaseModel):
     secrets: List[SecretRef] = Field(default_factory=list)
     configs: List[ConfigRef] = Field(default_factory=list)
     mounts: List[MountSpec] = Field(default_factory=list)
+    # the container's user, as docker run --user takes it; empty: the image's
+    user: str = ""
     cpu_limit: Optional[float] = Field(default=None, gt=0)
     memory_limit_mb: Optional[int] = Field(default=None, gt=0)
 
@@ -133,6 +138,13 @@ class JobSpec(JobFields):
         bad = sorted(name for name in value if not _ENV_NAME.match(name))
         if bad:
             raise ValueError(f"not environment variable names: {bad}")
+        return value
+
+    @field_validator("user")
+    @classmethod
+    def _user(cls, value: str) -> str:
+        if value and not _USER.match(value):
+            raise ValueError("give a name or uid, optionally :group or :gid, e.g. 100 or 100:101")
         return value
 
     @model_validator(mode="after")

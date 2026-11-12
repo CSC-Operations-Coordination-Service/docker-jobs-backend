@@ -116,6 +116,7 @@ class LaunchSpec:
     secrets: Sequence[dict] = ()
     configs: Sequence[dict] = ()
     mounts: Sequence[dict] = ()
+    user: str = ""
     cpu_limit: Optional[float] = None
     memory_limit_mb: Optional[int] = None
 
@@ -339,6 +340,8 @@ class SwarmRunner:
                 )
                 for mount in spec.mounts
             ],
+            # empty: the image's USER
+            "user": spec.user or None,
             "log_driver": LOG_DRIVER,
             "log_driver_options": self.log_options(),
         }
